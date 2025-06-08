@@ -1,0 +1,32 @@
+# Build artifacts
+build/
+node_modules/
+frontend/dist/
+
+# System files
+.DS_Store
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Environment variables
+.env
+
+# Application data (don't commit user data)
+transcripts/
+cost_data.json
+
+# Go build cache
+go.work
+go.work.sum
+
+# Frontend build artifacts
+frontend/wailsjs/
+
+# Wails build cache
+app.syso
+
+# macOS specific
+*.app
