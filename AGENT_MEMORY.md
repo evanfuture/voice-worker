@@ -12,7 +12,7 @@ TypeScript-based file monitoring system that:
 - Manages a job queue with pause/resume controls
 - Handles file deletions by re-queuing dependent jobs
 - Outputs parser results as new files alongside inputs
-- **Provides web interface for queue control and cost management**
+- **Provides modern Nuxt 3 web interface for queue control and cost management**
 
 ### Tech Stack
 
@@ -22,8 +22,9 @@ TypeScript-based file monitoring system that:
 - better-sqlite3 for metadata storage
 - Dynamic parser loading system
 - FFmpeg for audio processing
-- **Express.js + WebSocket for web interface**
-- **Modern vanilla HTML/CSS/JS frontend**
+- **Nuxt 3 + Vue.js for modern web interface**
+- **WebSocket support via Nuxt experimental features**
+- **VueUse composables for reactive state management**
 
 ### Architecture
 
@@ -32,7 +33,7 @@ TypeScript-based file monitoring system that:
 - Multi-stage processing support
 - CLI controls for queue management
 - Audio chunking for large files before transcription
-- **Real-time web interface with cost controls**
+- **Real-time web interface with cost controls (migrated to Nuxt 3)**
 
 ### Current Transcription Workflow (June 2025)
 
@@ -103,26 +104,27 @@ Audio file → `transcribe` → `.transcript.txt` → `summarize` → `.summary.
 **Deletion recovery:**
 Delete `.transcript.txt` → automatically re-queues transcription of original audio file
 
-### Web Interface for Queue Control (COMPLETE)
+### Modern Nuxt 3 Web Interface (MIGRATED)
 
-**Components:**
+**New Architecture:**
 
-- `src/web/server.ts` - Express.js server with WebSocket support
-- `src/web/public/index.html` - Modern single-page web interface
-- `src/web.ts` - Standalone web server entry point
+- `src/nuxt-web/` - Complete Nuxt 3 application
+- `src/nuxt-web/server/api/` - Nitro API routes replacing Express endpoints
+- `src/nuxt-web/server/routes/_ws.ts` - WebSocket handler using experimental support
+- `src/nuxt-web/app.vue` - Vue.js single-page application
 
 **Features:**
 
-- Real-time queue status monitoring via WebSocket
+- Real-time queue status monitoring via WebSocket (useWebSocket from VueUse)
 - Pause/Resume queue controls for cost management
 - Job listing with status, timestamps, and actions
 - Individual job retry/remove functionality
 - Clear all completed/failed jobs (safe for multi-Redis environments)
 - Connection status indicator with auto-reconnect
 - Responsive design for mobile/desktop
-- Modern UI with gradients and animations
+- Modern Vue.js reactive interface with TypeScript
 
-**API Endpoints:**
+**API Endpoints (Nitro):**
 
 - `GET /api/status` - Queue status and pause state
 - `POST /api/pause` - Pause transcription queue
@@ -133,19 +135,27 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - `POST /api/clear-completed` - Clear completed/failed jobs safely
 - `GET /api/files` - List database files
 
-**Running:**
+**WebSocket Support:**
 
-- `npm run web` - Start web interface on port 3000
-- `npm run dev` - Start main system (file watcher + queue worker)
-- Both can run simultaneously for full functionality
+- `ws://localhost:3000/_ws` - Real-time status updates
+- Uses Nuxt 3 experimental WebSocket support with `defineWebSocketHandler`
+- Automatic reconnection and heartbeat via VueUse
+- Status broadcasts for real-time UI updates
 
-**Important Notes:**
+**Running the New Interface:**
 
-- Web interface operates independently of main system
-- Uses separate QueueClient and DatabaseClient instances
-- Safe job clearing only affects Voice Worker queue, not other Redis apps
-- WebSocket provides real-time updates every 5 seconds
-- Cost control via pause/resume prevents unexpected transcription charges
+- `cd src/nuxt-web && npm run dev` - Development server
+- `cd src/nuxt-web && npm run build && npm run start` - Production
+- Available at `http://localhost:3000`
+- WebSocket automatically connects for real-time updates
+
+**Migration Notes:**
+
+- Original Express server preserved in `src/web/` (archived)
+- `src/web.ts` now shows migration notice and instructions
+- Full feature parity with original interface
+- Modern Vue.js architecture with reactive state management
+- Enhanced with VueUse composables for better UX
 
 ### System Status
 
@@ -160,7 +170,7 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - Deletion recovery system
 - Temp file cleanup
 - Job completion handlers with database updates
-- **Web interface for queue control and cost management**
+- **Modern Nuxt 3 web interface with Vue.js and WebSocket support**
 - **Real OpenAI Whisper-1 API integration with detailed transcription output**
 - **Environment variable configuration with dotenv**
 - **Error handling and fallback for API failures**
@@ -172,7 +182,7 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 3. Ensure FFmpeg is installed and available in PATH
 4. Start Redis: `docker run -d -p 6379:6379 redis:alpine`
 5. Run system: `npm run dev`
-6. Run web interface: `npm run web` (optional, separate terminal)
+6. Run web interface: `cd src/nuxt-web && npm run dev`
 7. Open browser: `http://localhost:3000`
 8. Drop audio files in ./dropbox folder
-9. Control queue via web interface or CLI
+9. Control queue via modern web interface

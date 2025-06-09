@@ -102,3 +102,16 @@ The system is fully functional with real OpenAI transcription and ready for:
 - [ ] Add parser configuration system
 - [ ] Implement parser result caching
 - [ ] Add transcription cost monitoring and budgets
+
+- [x] Install Nuxt and set up a new Nuxt app in a separate directory (e.g., src/nuxt-web)
+- [x] Configure Nuxt for TypeScript and basic project structure
+- [x] Verify Nuxt app runs independently (dev mode)
+- [x] Plan migration of existing web server logic and static assets
+- [x] Add necessary dependencies for Nuxt app (ws, express middleware for compat)
+- [x] Create Nuxt server API routes to replace Express endpoints (/api/status, /api/pause, etc.)
+- [x] Implement WebSocket support in Nuxt server middleware (solved with experimental.websocket + defineWebSocketHandler)
+- [x] Migrate HTML interface to Nuxt pages/components with Vue.js
+- [x] Convert vanilla CSS/JS to Vue components with VueUse WebSocket and reactive state
+- [x] Test Nuxt app for feature parity with original web app
+- [x] Update web entry point to use Nuxt app instead of Express server (migration notice provided)
+- [x] Archive old web app/server (preserved in src/web/ for reference)

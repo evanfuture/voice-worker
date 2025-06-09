@@ -1,4 +1,4 @@
-import { Queue, Worker, QueueEvents, Job, JobType } from "bullmq";
+import { Queue, Worker, QueueEvents, Job, type JobType } from "bullmq";
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
 import type { JobData, Parser } from "../types.js";
