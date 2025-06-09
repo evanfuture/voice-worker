@@ -1,0 +1,36 @@
+{
+  "name": "voice-worker",
+  "version": "1.0.0",
+  "description": "File monitoring and parsing system with pluggable parsers",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "cli": "tsx src/cli/index.ts"
+  },
+  "keywords": [
+    "file-monitoring",
+    "parsing",
+    "queue",
+    "typescript"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "chokidar": "^3.5.3",
+    "bullmq": "^4.15.1",
+    "better-sqlite3": "^9.2.2",
+    "redis": "^4.6.11",
+    "ioredis": "^5.3.2",
+    "commander": "^11.1.0",
+    "crypto": "^1.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.5",
+    "@types/better-sqlite3": "^7.6.8",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.0"
+  }
+}
