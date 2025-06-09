@@ -82,6 +82,17 @@ The system is fully functional with real OpenAI transcription and ready for:
 - Cost management through web interface pause/resume controls
 - Additional parser development using the established pattern
 
+### NEW: Cost Calculation System ✅
+
+- [x] Create generic LLM cost calculation utility
+- [x] Add file size to job data structure for cost calculation
+- [x] Research and implement OpenAI Whisper pricing rates ($0.006 per minute)
+- [x] Estimate audio duration from file size for cost calculation
+- [x] Add cost display to waiting jobs in web interface
+- [x] Add total projected cost for all waiting jobs
+- [x] Create cost calculator that works for different LLM services
+- [x] Add cost warnings/alerts when queue is paused with high cost items
+
 ### Setup Instructions
 
 1. Install dependencies: `npm install`

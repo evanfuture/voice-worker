@@ -27,6 +27,10 @@ export interface Parser {
 export interface JobData {
   path: string;
   parser: string;
+  // Optional cost information (added for cost calculations)
+  fileSizeBytes?: number;
+  estimatedCost?: number;
+  estimatedDurationMinutes?: number;
 }
 
 export interface SystemConfig {

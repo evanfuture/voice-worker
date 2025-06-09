@@ -2,6 +2,8 @@ import { Queue, Worker, QueueEvents, Job, type JobType } from "bullmq";
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
 import type { JobData, Parser } from "../types.js";
+import { calculateTranscriptionCost } from "../utils/cost-calculator.js";
+import { statSync, existsSync } from "node:fs";
 
 export class QueueClient {
   private queue: Queue;
@@ -29,6 +31,24 @@ export class QueueClient {
     priority = 0
   ): Promise<void> {
     const jobData: JobData = { path: filePath, parser };
+
+    // Add cost calculation for transcription jobs
+    if (parser === "transcribe" && existsSync(filePath)) {
+      try {
+        const stats = statSync(filePath);
+        const costResult = calculateTranscriptionCost(filePath);
+
+        jobData.fileSizeBytes = stats.size;
+        jobData.estimatedCost = costResult.estimatedCost;
+        jobData.estimatedDurationMinutes = costResult.estimatedDurationMinutes;
+
+        console.log(
+          `💰 Estimated cost for ${filePath}: $${costResult.estimatedCost.toFixed(4)} (${costResult.estimatedDurationMinutes.toFixed(1)}min)`
+        );
+      } catch (error) {
+        console.warn(`Failed to calculate cost for ${filePath}:`, error);
+      }
+    }
 
     await this.queue.add(parser, jobData, {
       priority,

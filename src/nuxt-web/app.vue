@@ -63,6 +63,40 @@
           </div>
         </div>
 
+        <!-- Cost Summary (only show when paused with waiting jobs) -->
+        <div
+          v-if="isPaused && costSummary.transcriptionJobCount > 0"
+          class="cost-section"
+        >
+          <div class="cost-warning">
+            <h3>💰 Estimated Costs for Waiting Transcriptions</h3>
+            <div class="cost-details">
+              <div class="cost-item">
+                <span class="cost-label">Total Jobs:</span>
+                <span class="cost-value">{{
+                  costSummary.transcriptionJobCount
+                }}</span>
+              </div>
+              <div class="cost-item">
+                <span class="cost-label">Estimated Duration:</span>
+                <span class="cost-value">{{
+                  costSummary.formattedTotalDuration
+                }}</span>
+              </div>
+              <div class="cost-item">
+                <span class="cost-label">Estimated Cost:</span>
+                <span class="cost-value cost-amount">{{
+                  costSummary.formattedTotalCost
+                }}</span>
+              </div>
+            </div>
+            <div class="cost-note">
+              ⚠️ These are estimated costs based on file size. Actual costs may
+              vary.
+            </div>
+          </div>
+        </div>
+
         <!-- Jobs Table -->
         <div class="jobs-section">
           <h2>📋 Current Jobs</h2>
@@ -76,13 +110,14 @@
                 <th>Parser</th>
                 <th>File</th>
                 <th>Status</th>
+                <th>Cost</th>
                 <th>Created</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               <tr v-if="jobs.length === 0">
-                <td colspan="6" style="text-align: center; color: #6b7280">
+                <td colspan="7" style="text-align: center; color: #6b7280">
                   No jobs found
                 </td>
               </tr>
@@ -94,6 +129,15 @@
                   <span :class="`job-status status-${job.status}`">
                     {{ job.status }}
                   </span>
+                </td>
+                <td>
+                  <span
+                    v-if="job.data.estimatedCost && job.status === 'waiting'"
+                    class="cost-estimate"
+                  >
+                    {{ formatJobCost(job.data.estimatedCost) }}
+                  </span>
+                  <span v-else class="no-cost">-</span>
                 </td>
                 <td>{{ formatDate(job.createdAt) }}</td>
                 <td>
@@ -131,6 +175,15 @@ const isPaused = ref(false);
 const queueCounts = ref({});
 const jobs = ref([]);
 const loading = ref(true);
+const costSummary = ref({
+  totalCost: 0,
+  totalDurationMinutes: 0,
+  transcriptionJobCount: 0,
+  totalWaitingJobs: 0,
+  formattedTotalCost: "$0.00",
+  formattedTotalDuration: "0m",
+  jobCosts: [],
+});
 
 // WebSocket connection
 const wsProtocol =
@@ -232,10 +285,31 @@ async function loadJobs() {
   try {
     loading.value = true;
     jobs.value = await $fetch("/api/jobs");
+    // Load cost summary whenever jobs are loaded
+    await loadCostSummary();
   } catch (error) {
     console.error("Failed to load jobs:", error);
   } finally {
     loading.value = false;
+  }
+}
+
+async function loadCostSummary() {
+  try {
+    const summary = await $fetch("/api/cost-summary");
+    costSummary.value = summary;
+  } catch (error) {
+    console.error("Failed to load cost summary:", error);
+    // Reset to default values on error
+    costSummary.value = {
+      totalCost: 0,
+      totalDurationMinutes: 0,
+      transcriptionJobCount: 0,
+      totalWaitingJobs: 0,
+      formattedTotalCost: "$0.00",
+      formattedTotalDuration: "0m",
+      jobCosts: [],
+    };
   }
 }
 
@@ -281,6 +355,13 @@ async function clearCompleted() {
     console.error("Failed to clear completed jobs:", error);
     alert("Failed to clear completed jobs");
   }
+}
+
+function formatJobCost(cost) {
+  if (cost < 0.01) {
+    return `${(cost * 100).toFixed(2)}¢`;
+  }
+  return `$${cost.toFixed(4)}`;
 }
 
 function getFileName(path) {
@@ -445,6 +526,86 @@ body {
 .status-paused {
   background: #fef3c7;
   color: #92400e;
+}
+
+.cost-section {
+  margin: 2rem 0;
+}
+
+.cost-warning {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  border: 2px solid #f59e0b;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 12px rgba(245, 158, 11, 0.1);
+}
+
+.cost-warning h3 {
+  color: #92400e;
+  margin-bottom: 1rem;
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.cost-details {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.cost-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.6);
+  padding: 0.75rem 1rem;
+  border-radius: 8px;
+  border: 1px solid #f59e0b;
+}
+
+.cost-label {
+  font-weight: 600;
+  color: #92400e;
+}
+
+.cost-value {
+  font-weight: bold;
+  color: #1f2937;
+}
+
+.cost-amount {
+  font-size: 1.1rem;
+  color: #dc2626;
+  background: rgba(255, 255, 255, 0.8);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  border: 1px solid #dc2626;
+}
+
+.cost-note {
+  font-size: 0.875rem;
+  color: #92400e;
+  font-style: italic;
+  text-align: center;
+  margin-top: 0.5rem;
+  opacity: 0.8;
+}
+
+.cost-estimate {
+  font-weight: 600;
+  color: #dc2626;
+  background: #fee2e2;
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  font-size: 0.75rem;
+}
+
+.no-cost {
+  color: #9ca3af;
+  font-style: italic;
 }
 
 .jobs-section {

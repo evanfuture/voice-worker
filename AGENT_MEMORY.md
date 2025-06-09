@@ -123,6 +123,8 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - Connection status indicator with auto-reconnect
 - Responsive design for mobile/desktop
 - Modern Vue.js reactive interface with TypeScript
+- **Cost estimation and display for transcription jobs**
+- **Warning alerts when queue is paused with waiting high-cost jobs**
 
 **API Endpoints (Nitro):**
 
@@ -134,6 +136,7 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - `DELETE /api/jobs/:id` - Remove job
 - `POST /api/clear-completed` - Clear completed/failed jobs safely
 - `GET /api/files` - List database files
+- **`GET /api/cost-summary` - Get cost estimates for waiting transcription jobs**
 
 **WebSocket Support:**
 
@@ -174,6 +177,8 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - **Real OpenAI Whisper-1 API integration with detailed transcription output**
 - **Environment variable configuration with dotenv**
 - **Error handling and fallback for API failures**
+- **Generic cost calculation system for LLM services with OpenAI Whisper pricing**
+- **Real-time cost display and warnings in web interface**
 
 ### Setup Instructions
 
