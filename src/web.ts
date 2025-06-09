@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig(); // Load environment variables from .env file
+
 import { WebServer } from "./web/server.js";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";

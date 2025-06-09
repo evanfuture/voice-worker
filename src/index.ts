@@ -1,3 +1,6 @@
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig(); // Load environment variables from .env file
+
 import { join } from "node:path";
 import { existsSync, mkdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";

@@ -6,32 +6,94 @@ import {
   unlinkSync,
   readdirSync,
   rmSync,
+  readFileSync,
 } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { spawn } from "node:child_process";
 import type { Parser } from "../types.js";
+import OpenAI from "openai";
+import { toFile } from "openai/uploads";
 
-// Mock transcription function for individual files/chunks
+// Initialize OpenAI client with API key from environment
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// Real transcription function using OpenAI Whisper API
 async function transcribeAudio(audioPath: string): Promise<string> {
   const audioName = basename(audioPath);
   console.log(`  Transcribing: ${audioName}`);
 
-  // Simulate API call delay
-  await new Promise((resolve) => setTimeout(resolve, 1500));
+  try {
+    // Read the audio file
+    const audioBuffer = readFileSync(audioPath);
 
-  // Mock transcript content - replace with actual API call
-  const transcript = `[Audio: ${audioName}]
+    // Convert to file format that OpenAI expects
+    // Important: Include the correct file extension in the filename
+    const audioExtension = extname(audioPath);
+    const audioFile = await toFile(audioBuffer, `audio${audioExtension}`);
 
-This is a mock transcription of audio: ${audioName}
-In a real implementation, this would contain the actual transcribed speech from this audio.
+    // Call OpenAI Whisper API
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: "whisper-1",
+      response_format: "verbose_json", // Get detailed response with timestamps
+      temperature: 0.0, // More deterministic output
+    });
 
-Audio details:
-- Source: ${audioName}
-- Transcribed at: ${new Date().toISOString()}
+    // Format the response with timestamp information
+    const transcript = `[Audio: ${audioName}]
 
-[End of audio transcription]`;
+Transcribed using OpenAI Whisper-1 model
+Transcribed at: ${new Date().toISOString()}
+Audio duration: ${transcription.duration ? transcription.duration.toFixed(2) + "s" : "unknown"}
 
-  return transcript;
+================================================================================
+
+${transcription.text}
+
+================================================================================
+
+${
+  transcription.segments
+    ? `
+DETAILED SEGMENTS:
+${transcription.segments
+  .map(
+    (segment, idx) => `
+${String(idx + 1).padStart(3, "0")}. [${segment.start.toFixed(2)}s - ${segment.end.toFixed(2)}s]
+     ${segment.text.trim()}
+`
+  )
+  .join("")}
+`
+    : ""
+}
+[End of transcription]`;
+
+    return transcript;
+  } catch (error) {
+    console.error(
+      `    ❌ OpenAI transcription failed for ${audioName}:`,
+      error
+    );
+
+    // If OpenAI fails, provide a fallback error message instead of crashing
+    const errorTranscript = `[Audio: ${audioName}]
+
+❌ Transcription failed using OpenAI Whisper API
+Error: ${error instanceof Error ? error.message : "Unknown error"}
+Attempted at: ${new Date().toISOString()}
+
+Please check:
+1. OPENAI_API_KEY is set in your .env file
+2. Your OpenAI account has available credits
+3. The audio file format is supported (.mp3, .wav, .m4a, .mp4, .mov, .flac, .ogg, .webm)
+
+[End of error report]`;
+
+    return errorTranscript;
+  }
 }
 
 // Function to chunk large audio files using FFmpeg

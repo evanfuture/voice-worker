@@ -1,5 +1,8 @@
 #!/usr/bin/env node
 
+import { config as dotenvConfig } from "dotenv";
+dotenvConfig(); // Load environment variables from .env file
+
 import { Command } from "commander";
 import { QueueClient } from "../queue/client.js";
 import { DatabaseClient } from "../db/client.js";

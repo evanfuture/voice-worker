@@ -34,22 +34,25 @@ TypeScript-based file monitoring system that:
 - Audio chunking for large files before transcription
 - **Real-time web interface with cost controls**
 
-### Current Transcription Workflow (Jan 2025)
+### Current Transcription Workflow (June 2025)
 
-**Unified transcribe parser handles all audio files:**
+**Unified transcribe parser handles all audio files with OpenAI Whisper:**
 
-- Small files (≤10MB): Direct transcription
-- Large files (>10MB): Internal chunking → transcribe chunks → merge → cleanup temp files
+- Small files (≤10MB): Direct OpenAI Whisper-1 API transcription
+- Large files (>10MB): Internal chunking → transcribe chunks with OpenAI → merge → cleanup temp files
 - Always outputs: `audio.mp3` → `audio.mp3.transcript.txt`
 - Chunking is internal implementation detail, invisible to user
 - Automatic temp file cleanup with proper ES module imports
+- Real transcription with timestamps, segments, and duration information
 
 **Key Implementation Details:**
 
 - Uses FFmpeg for audio segmentation (5-minute chunks)
 - Creates timestamped temp directories in `tmp/transcribe-{timestamp}/`
-- Mock transcription functions simulate API calls with 1.5s delay
-- Error recovery continues with other chunks if one fails
+- OpenAI Whisper-1 API with verbose_json response format for detailed output
+- Uses `toFile` helper from `openai/uploads` for proper audio file handling
+- Environment variables loaded with dotenv (.env file)
+- Error recovery continues with other chunks if one fails, includes fallback error reporting
 - Uses `rmSync()` with recursive cleanup (not deprecated `require()`)
 
 ### Database Schema & Field Mapping
@@ -158,14 +161,18 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - Temp file cleanup
 - Job completion handlers with database updates
 - **Web interface for queue control and cost management**
+- **Real OpenAI Whisper-1 API integration with detailed transcription output**
+- **Environment variable configuration with dotenv**
+- **Error handling and fallback for API failures**
 
 ### Setup Instructions
 
 1. Install dependencies: `npm install`
-2. Ensure FFmpeg is installed and available in PATH
-3. Start Redis: `docker run -d -p 6379:6379 redis:alpine`
-4. Run system: `npm run dev`
-5. Run web interface: `npm run web` (optional, separate terminal)
-6. Open browser: `http://localhost:3000`
-7. Drop audio files in ./dropbox folder
-8. Control queue via web interface or CLI
+2. Create .env file with your OpenAI API key: `OPENAI_API_KEY=your_key_here`
+3. Ensure FFmpeg is installed and available in PATH
+4. Start Redis: `docker run -d -p 6379:6379 redis:alpine`
+5. Run system: `npm run dev`
+6. Run web interface: `npm run web` (optional, separate terminal)
+7. Open browser: `http://localhost:3000`
+8. Drop audio files in ./dropbox folder
+9. Control queue via web interface or CLI
