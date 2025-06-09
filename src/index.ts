@@ -54,12 +54,25 @@ async function main() {
     inputPath: string;
   }) => {
     const { outputPath, parser: parserName, inputPath } = result;
+    console.log(
+      `🎯 Job completion handler called for ${parserName}: ${inputPath} → ${outputPath}`
+    );
 
     // Find the file record
     const fileRecord = db.getFile(inputPath);
     if (fileRecord) {
+      console.log(
+        `🗃️  Found file record for ${inputPath}: id=${fileRecord.id}`
+      );
       // Mark the parse as done
+      console.log(
+        `💾 Updating parse record: fileId=${fileRecord.id}, parser=${parserName}, status=done, outputPath=${outputPath}`
+      );
       db.upsertParse(fileRecord.id, parserName, "done", outputPath);
+
+      // Verify the update worked
+      const updatedParse = db.getParse(fileRecord.id, parserName);
+      console.log(`🔍 Parse record after update:`, updatedParse);
       console.log(`✅ Completed ${parserName}: ${outputPath}`);
 
       // Check if there are now other parsers that can be run
@@ -85,6 +98,10 @@ async function main() {
           queue.enqueueJob(readyParser.name, inputPath);
         }
       }
+    } else {
+      console.error(
+        `❌ No file record found for ${inputPath} in job completion handler`
+      );
     }
   };
 

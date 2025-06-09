@@ -60,7 +60,15 @@ export class DatabaseClient {
         RETURNING *
       `);
 
-      return stmt.get(filePath, sha256, kind, now, now) as FileRecord;
+      const result = stmt.get(filePath, sha256, kind, now, now) as any;
+      return {
+        id: result.id,
+        path: result.path,
+        sha256: result.sha256,
+        kind: result.kind,
+        createdAt: result.created_at,
+        updatedAt: result.updated_at,
+      };
     } catch (error) {
       throw new Error(`Failed to upsert file ${filePath}: ${error}`);
     }
@@ -68,7 +76,17 @@ export class DatabaseClient {
 
   getFile(filePath: string): FileRecord | null {
     const stmt = this.db.prepare("SELECT * FROM files WHERE path = ?");
-    return stmt.get(filePath) as FileRecord | null;
+    const result = stmt.get(filePath) as any;
+    if (!result) return null;
+
+    return {
+      id: result.id,
+      path: result.path,
+      sha256: result.sha256,
+      kind: result.kind,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
   }
 
   deleteFile(filePath: string): void {
@@ -101,19 +119,45 @@ export class DatabaseClient {
     const stmt = this.db.prepare(
       "SELECT * FROM parses WHERE file_id = ? AND parser = ?"
     );
-    return stmt.get(fileId, parser) as ParseRecord | null;
+    const result = stmt.get(fileId, parser) as any;
+    if (!result) return null;
+
+    return {
+      fileId: result.file_id,
+      parser: result.parser,
+      status: result.status,
+      outputPath: result.output_path,
+      updatedAt: result.updated_at,
+      error: result.error,
+    };
   }
 
   getPendingParses(): ParseRecord[] {
     const stmt = this.db.prepare(
       'SELECT * FROM parses WHERE status = "pending"'
     );
-    return stmt.all() as ParseRecord[];
+    const results = stmt.all() as any[];
+    return results.map((result) => ({
+      fileId: result.file_id,
+      parser: result.parser,
+      status: result.status,
+      outputPath: result.output_path,
+      updatedAt: result.updated_at,
+      error: result.error,
+    }));
   }
 
   getFileParses(fileId: number): ParseRecord[] {
     const stmt = this.db.prepare("SELECT * FROM parses WHERE file_id = ?");
-    return stmt.all(fileId) as ParseRecord[];
+    const results = stmt.all(fileId) as any[];
+    return results.map((result) => ({
+      fileId: result.file_id,
+      parser: result.parser,
+      status: result.status,
+      outputPath: result.output_path,
+      updatedAt: result.updated_at,
+      error: result.error,
+    }));
   }
 
   markParsesAsPendingByOutputPath(outputPath: string): ParseRecord[] {
@@ -123,12 +167,30 @@ export class DatabaseClient {
       WHERE output_path = ?
       RETURNING *
     `);
-    return stmt.all(outputPath) as ParseRecord[];
+    const results = stmt.all(outputPath) as any[];
+    return results.map((result) => ({
+      fileId: result.file_id,
+      parser: result.parser,
+      status: result.status,
+      outputPath: result.output_path,
+      updatedAt: result.updated_at,
+      error: result.error,
+    }));
   }
 
   getFileById(id: number): FileRecord | null {
     const stmt = this.db.prepare("SELECT * FROM files WHERE id = ?");
-    return stmt.get(id) as FileRecord | null;
+    const result = stmt.get(id) as any;
+    if (!result) return null;
+
+    return {
+      id: result.id,
+      path: result.path,
+      sha256: result.sha256,
+      kind: result.kind,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
   }
 
   close(): void {

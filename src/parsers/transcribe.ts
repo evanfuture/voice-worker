@@ -5,6 +5,7 @@ import {
   existsSync,
   unlinkSync,
   readdirSync,
+  rmSync,
 } from "node:fs";
 import { basename, dirname, extname, join } from "node:path";
 import { spawn } from "node:child_process";
@@ -200,7 +201,7 @@ End of transcription.`;
                 }
               }
               // Remove the directory itself
-              require("fs").rmdirSync(dirPath);
+              rmSync(dirPath, { recursive: true, force: true });
             };
             removeDir(tempDir);
           }

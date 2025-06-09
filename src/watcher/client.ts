@@ -70,10 +70,7 @@ export class FileWatcher {
       console.log(`📝 No parses found with this output path`);
     }
 
-    // Remove the file from our database
-    this.db.deleteFile(filePath);
-
-    // Re-enqueue jobs for the affected parses
+    // Re-enqueue jobs for the affected parses BEFORE deleting the file record
     for (const parse of affectedParses) {
       const file = this.db.getFileById(parse.fileId);
       if (file && existsSync(file.path)) {
@@ -87,6 +84,9 @@ export class FileWatcher {
         );
       }
     }
+
+    // Remove the file from our database AFTER re-queuing
+    this.db.deleteFile(filePath);
   }
 
   private async processFile(filePath: string): Promise<void> {
