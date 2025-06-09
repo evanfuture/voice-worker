@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { EventsOn } from "../wailsjs/runtime";
+import AudioFileManager from "./components/AudioFileManager.vue";
 import {
   GetDefaultInputDevice,
   GetInputDevices,
@@ -17,7 +18,7 @@ import {
   GetFolderFiles,
   GetProcessingQueue,
   IsMonitoringFolder,
-} from "../wailsjs/go/main/App";
+} from "../wailsjs/go/main/CleanApp";
 
 const status = ref("Idle");
 const lastTranscript = ref("");
@@ -283,6 +284,13 @@ function getStatusColor(status) {
           >
             📁 Monitor Folder
           </button>
+          <button
+            :class="{ active: activeTab === 'files' }"
+            @click="activeTab = 'files'"
+            class="tab-button"
+          >
+            🗂️ File Manager
+          </button>
         </div>
       </div>
 
@@ -448,6 +456,11 @@ function getStatusColor(status) {
               </button>
             </div>
           </div>
+        </div>
+
+        <!-- File Manager Tab -->
+        <div v-if="activeTab === 'files'" class="tab-content">
+          <AudioFileManager />
         </div>
 
         <!-- Cost Monitor Section (shared between tabs) -->

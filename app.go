@@ -13,17 +13,22 @@ type App struct {
 	fileService           *FileService
 	costTrackingService   *CostTrackingService
 	folderMonitorService  *FolderMonitorService
+	convexClient          *ConvexClient
+	parserService         *ParserService
 }
 
 // NewApp creates a new App application struct
-func NewApp(audioService *AudioService, transcriptionService *TranscriptionService, fileService *FileService, costTrackingService *CostTrackingService) *App {
-	return &App{
-		audioService:          audioService,
-		transcriptionService:  transcriptionService,
-		fileService:           fileService,
-		costTrackingService:   costTrackingService,
-		folderMonitorService:  NewFolderMonitorService(),
+func NewApp(audioService *AudioService, transcriptionService *TranscriptionService, fileService *FileService, costTrackingService *CostTrackingService, convexClient *ConvexClient) *App {
+	app := &App{
+		audioService:         audioService,
+		transcriptionService: transcriptionService,
+		fileService:          fileService,
+		costTrackingService:  costTrackingService,
+		folderMonitorService: NewFolderMonitorService(),
+		convexClient:         convexClient,
 	}
+	app.parserService = NewParserService(app, convexClient)
+	return app
 }
 
 // startup is called when the app starts up.
@@ -31,7 +36,7 @@ func NewApp(audioService *AudioService, transcriptionService *TranscriptionServi
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 	a.audioService.SetContext(ctx)
-	a.folderMonitorService.SetContext(ctx, a)
+	a.folderMonitorService.SetContext(ctx, a, a.convexClient)
 
 	devices, err := a.audioService.ListDevices()
 	if err != nil {
@@ -95,12 +100,16 @@ func (a *App) ResetSessionCost() {
 
 // Folder Monitor Methods
 
-// SelectFolderToMonitor opens a folder picker and starts monitoring the selected folder
+func (a *App) SetSelectedFolder(folderId string, path string) error {
+	return a.folderMonitorService.SetSelectedFolder(folderId, path)
+}
+
+// SelectFolderToMonitor opens a folder picker and returns the path
 func (a *App) SelectFolderToMonitor() (string, error) {
 	return a.folderMonitorService.SelectFolder()
 }
 
-// ScanMonitoredFolder rescans the currently selected folder for audio files
+// ScanMonitoredFolder rescans the currently selected folder for files
 func (a *App) ScanMonitoredFolder() error {
 	return a.folderMonitorService.ScanFolder()
 }
@@ -125,13 +134,13 @@ func (a *App) GetSelectedFolder() string {
 	return a.folderMonitorService.GetSelectedFolder()
 }
 
-// GetFolderFiles returns the list of files found in the folder
-func (a *App) GetFolderFiles() []AudioFile {
+// GetFolderFiles returns the list of files found in the folder (backward compatibility)
+func (a *App) GetFolderFiles() []FileInfo {
 	return a.folderMonitorService.GetFiles()
 }
 
-// GetProcessingQueue returns the current processing queue
-func (a *App) GetProcessingQueue() []AudioFile {
+// GetProcessingQueue returns the current processing queue (backward compatibility)
+func (a *App) GetProcessingQueue() []FileInfo {
 	return a.folderMonitorService.GetProcessingQueue()
 }
 
