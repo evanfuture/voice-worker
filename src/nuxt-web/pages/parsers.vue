@@ -111,6 +111,19 @@
                     }}
                   </span>
                 </div>
+
+                <div class="detail-group">
+                  <strong>Derived Files:</strong>
+                  <span
+                    :class="`selection-mode ${config.allowDerivedFiles ? 'allowed' : 'blocked'}`"
+                  >
+                    {{
+                      config.allowDerivedFiles
+                        ? "Can Process Derived Files"
+                        : "Original Files Only"
+                    }}
+                  </span>
+                </div>
               </div>
             </div>
 
@@ -126,6 +139,12 @@
                 :class="`btn btn-small ${config.isEnabled ? 'btn-warning' : 'btn-success'}`"
               >
                 {{ config.isEnabled ? "Disable" : "Enable" }}
+              </button>
+              <button
+                @click="deleteConfig(config)"
+                class="btn btn-danger btn-small"
+              >
+                Delete
               </button>
             </div>
           </div>
@@ -236,6 +255,14 @@
               </label>
             </div>
 
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input v-model="formData.allowDerivedFiles" type="checkbox" />
+                Allow processing of derived/generated files (outputs from other
+                parsers)
+              </label>
+            </div>
+
             <div class="form-actions">
               <button
                 type="button"
@@ -271,6 +298,7 @@ const formData = ref({
   description: "",
   outputExt: "",
   allowUserSelection: false,
+  allowDerivedFiles: false,
 });
 
 const inputExtensionsText = ref("");
@@ -308,6 +336,7 @@ function editConfig(config) {
     description: config.description,
     outputExt: config.outputExt,
     allowUserSelection: config.allowUserSelection,
+    allowDerivedFiles: config.allowDerivedFiles,
   };
   inputExtensionsText.value = config.inputExtensions.join(", ");
   inputTagsText.value = config.inputTags.join(", ");
@@ -345,6 +374,7 @@ function closeForm() {
     description: "",
     outputExt: "",
     allowUserSelection: false,
+    allowDerivedFiles: false,
   };
   inputExtensionsText.value = "";
   inputTagsText.value = "";
@@ -396,6 +426,31 @@ async function toggleEnabled(config) {
     await loadConfigs();
   } catch (error) {
     console.error("Failed to toggle config:", error);
+  }
+}
+
+async function deleteConfig(config) {
+  if (
+    !confirm(
+      `Are you sure you want to delete the parser configuration "${config.displayName}"? This action cannot be undone.`
+    )
+  ) {
+    return;
+  }
+
+  try {
+    await $fetch("/api/parser-configs", {
+      method: "DELETE",
+      body: {
+        name: config.name,
+      },
+    });
+    await loadConfigs();
+  } catch (error) {
+    console.error("Failed to delete config:", error);
+    alert(
+      "Failed to delete configuration. Please check the console for details."
+    );
   }
 }
 
@@ -503,6 +558,15 @@ onMounted(() => {
 .btn-warning {
   background: #f59e0b;
   color: white;
+}
+
+.btn-danger {
+  background: #dc2626;
+  color: white;
+}
+
+.btn-danger:hover {
+  background: #b91c1c;
 }
 
 .btn-small {
@@ -619,6 +683,14 @@ onMounted(() => {
 
 .selection-mode.automatic {
   color: #6b7280;
+}
+
+.selection-mode.allowed {
+  color: #059669;
+}
+
+.selection-mode.blocked {
+  color: #dc2626;
 }
 
 .parser-actions {

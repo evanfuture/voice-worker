@@ -1,6 +1,18 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { basename } from "node:path";
 import type { Parser } from "../types.js";
+import OpenAI from "openai";
+import {
+  estimateSummarizationCost,
+  calculateGPTCost,
+  estimateTokenCount,
+  formatCost,
+} from "../utils/cost-calculator.js";
+
+// Initialize OpenAI client with API key from environment
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export const parser: Parser = {
   name: "summarize",
@@ -10,66 +22,128 @@ export const parser: Parser = {
 
   async run(inputPath: string): Promise<string> {
     const outputPath = inputPath.replace(/\.transcript\.txt$/, ".summary.txt");
+    const model = "gpt-4-turbo";
 
-    // Read the transcript content
-    const transcriptContent = readFileSync(inputPath, "utf-8");
+    console.log(`Summarizing transcript: ${basename(inputPath)}`);
 
-    // Enhanced mock summarization with better content analysis
-    const lines = transcriptContent.split("\n");
-    const contentLines = lines.filter(
-      (line) =>
-        line.trim() &&
-        !line.startsWith("[") &&
-        !line.startsWith("===") &&
-        !line.startsWith("Transcribed") &&
-        !line.startsWith("Audio duration") &&
-        !line.includes("DETAILED SEGMENTS")
-    );
+    try {
+      // Read the transcript content
+      const transcriptContent = readFileSync(inputPath, "utf-8");
 
-    const wordCount = contentLines.join(" ").split(/\s+/).length;
-    const estimatedReadingTime = Math.ceil(wordCount / 200); // 200 words per minute
+      // Clean the transcript content to extract the main text
+      const lines = transcriptContent.split("\n");
+      const contentLines = lines.filter(
+        (line) =>
+          line.trim() &&
+          !line.startsWith("[") &&
+          !line.startsWith("===") &&
+          !line.startsWith("Transcribed") &&
+          !line.startsWith("Audio duration") &&
+          !line.includes("DETAILED SEGMENTS")
+      );
 
-    const mockSummary = `SUMMARY OF: ${basename(inputPath)}
+      const cleanContent = contentLines.join("\n");
 
-Original transcript length: ${transcriptContent.length} characters
-Estimated reading time: ${estimatedReadingTime} minutes
-Content lines analyzed: ${contentLines.length}
+      if (!cleanContent.trim()) {
+        throw new Error("No meaningful content found in transcript");
+      }
 
-KEY POINTS:
-- This is an automatically generated summary
-- The original file contained ${wordCount} words of transcribed content
-- In a real implementation, this would use an LLM API to analyze the transcript
-- The summary would extract key themes, topics, and important information
-- Content appears to be ${contentLines.length > 50 ? "substantial" : "brief"} in nature
+      // Calculate estimated cost before making the API call
+      const costEstimate = estimateSummarizationCost(cleanContent, model);
+      console.log(
+        `  Estimated cost: ${formatCost(costEstimate.estimatedCost)} (${costEstimate.estimatedInputTokens} input + ${costEstimate.estimatedOutputTokens} output tokens)`
+      );
 
-CONTENT OVERVIEW:
-${
-  contentLines.length > 0
-    ? `The transcript contains meaningful content with ${contentLines.length} substantive lines. ` +
-      `A real summary would provide insights about the actual spoken content, ` +
-      `identifying main topics, key decisions, action items, and important quotes.`
-    : "The transcript appears to be empty or contain only metadata."
-}
+      // Create the summarization prompt
+      const systemPrompt = `You are a professional transcript summarizer. Create a comprehensive yet concise summary of the provided transcript. Include:
 
-SAMPLE CONTENT PREVIEW:
-${contentLines
-  .slice(0, 3)
-  .map((line) => `• ${line.substring(0, 100)}${line.length > 100 ? "..." : ""}`)
-  .join("\n")}
+1. KEY TOPICS: Main themes and subjects discussed
+2. IMPORTANT POINTS: Critical information, decisions, or insights
+3. ACTION ITEMS: Any tasks, next steps, or follow-ups mentioned
+4. NOTABLE QUOTES: Significant statements or quotes if relevant
+5. CONCLUSION: Overall takeaway or outcome
 
-Generated at: ${new Date().toISOString()}
+Format your response in clear sections with bullet points where appropriate. Keep the summary focused and actionable.`;
+
+      const userPrompt = `Please summarize this transcript:
+
+${cleanContent}`;
+
+      // Call OpenAI API
+      console.log(`  Calling GPT-4 Turbo for summarization...`);
+      const response = await openai.chat.completions.create({
+        model: model,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        temperature: 0.3, // Lower temperature for more focused summaries
+        max_tokens: 2000, // Reasonable limit for summaries
+      });
+
+      const summary = response.choices[0]?.message?.content;
+      if (!summary) {
+        throw new Error("No summary generated by OpenAI");
+      }
+
+      // Calculate actual cost based on token usage
+      const actualInputTokens =
+        response.usage?.prompt_tokens || costEstimate.estimatedInputTokens;
+      const actualOutputTokens =
+        response.usage?.completion_tokens || costEstimate.estimatedOutputTokens;
+      const actualCost = calculateGPTCost(
+        actualInputTokens,
+        actualOutputTokens,
+        model
+      );
+
+      console.log(
+        `  ✅ Summary generated: ${actualInputTokens} input + ${actualOutputTokens} output tokens`
+      );
+      console.log(`  💰 Actual cost: ${formatCost(actualCost.totalCost)}`);
+
+      // Create the final output with metadata
+      const finalSummary = `SUMMARY OF: ${basename(inputPath)}
+
+Generated by: OpenAI ${model}
 Source transcript: ${inputPath}
-Processing mode: ${contentLines.length > 100 ? "Detailed analysis" : "Quick summary"}`;
+Generated at: ${new Date().toISOString()}
+Processing cost: ${formatCost(actualCost.totalCost)} (${actualInputTokens} input + ${actualOutputTokens} output tokens)
+Original content: ${transcriptContent.length} characters, ${contentLines.length} content lines
 
-    // Simulate API processing time based on content length
-    const processingTime = Math.min(
-      3000,
-      Math.max(500, contentLines.length * 10)
-    );
-    await new Promise((resolve) => setTimeout(resolve, processingTime));
+================================================================================
 
-    writeFileSync(outputPath, mockSummary, "utf-8");
+${summary}
 
-    return outputPath;
+================================================================================
+
+Processing Details:
+- Model: ${model}
+- Input tokens: ${actualInputTokens}
+- Output tokens: ${actualOutputTokens}
+- Total cost: ${formatCost(actualCost.totalCost)}
+- Processing time: ${new Date().toISOString()}`;
+
+      writeFileSync(outputPath, finalSummary, "utf-8");
+
+      return outputPath;
+    } catch (error) {
+      console.error(`Failed to summarize ${basename(inputPath)}:`, error);
+
+      // Create error summary
+      const errorSummary = `SUMMARY ERROR: ${basename(inputPath)}
+
+Failed to generate AI summary at: ${new Date().toISOString()}
+Error: ${error instanceof Error ? error.message : "Unknown error"}
+Source transcript: ${inputPath}
+
+The transcript content could not be processed by the AI summarization service.
+Please check the transcript content and try again, or process manually.
+
+Generated at: ${new Date().toISOString()}`;
+
+      writeFileSync(outputPath, errorSummary, "utf-8");
+      throw error;
+    }
   },
 };

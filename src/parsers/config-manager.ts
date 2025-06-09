@@ -36,6 +36,7 @@ export class ParserConfigManager {
           dependsOn: parser.dependsOn,
           isEnabled: true,
           allowUserSelection: false, // Default to automatic based on extensions
+          allowDerivedFiles: parser.name === "summarize", // Allow derived files for summarize parser by default
           config: {}, // Parser-specific configuration
         };
 
@@ -57,7 +58,11 @@ export class ParserConfigManager {
   /**
    * Get parser configurations that apply to a file based on extension and tags
    */
-  getApplicableConfigs(filePath: string, fileTags: string[]): ParserConfig[] {
+  getApplicableConfigs(
+    filePath: string,
+    fileTags: string[],
+    isDerivative: boolean = false
+  ): ParserConfig[] {
     const ext = this.getFileExtension(filePath);
     const enabledConfigs = this.getEnabledConfigs();
 
@@ -70,7 +75,10 @@ export class ParserConfigManager {
         config.inputTags.length === 0 ||
         config.inputTags.every((requiredTag) => fileTags.includes(requiredTag));
 
-      return extensionMatches && tagsMatch;
+      // Check if derived files are allowed for this config
+      const derivativeAllowed = !isDerivative || config.allowDerivedFiles;
+
+      return extensionMatches && tagsMatch && derivativeAllowed;
     });
   }
 
@@ -80,9 +88,14 @@ export class ParserConfigManager {
   getReadyConfigs(
     filePath: string,
     fileTags: string[],
-    completedParsers: Set<string>
+    completedParsers: Set<string>,
+    isDerivative: boolean = false
   ): ParserConfig[] {
-    const applicable = this.getApplicableConfigs(filePath, fileTags);
+    const applicable = this.getApplicableConfigs(
+      filePath,
+      fileTags,
+      isDerivative
+    );
 
     return applicable.filter((config) => {
       // Check if all dependencies are completed
@@ -112,6 +125,7 @@ export class ParserConfigManager {
     outputExt: string,
     dependsOn: string[] = [],
     allowUserSelection: boolean = false,
+    allowDerivedFiles: boolean = false,
     config: Record<string, any> = {}
   ): ParserConfig {
     const parserConfig: Omit<ParserConfig, "id" | "createdAt" | "updatedAt"> = {
@@ -125,6 +139,7 @@ export class ParserConfigManager {
       dependsOn,
       isEnabled: true,
       allowUserSelection,
+      allowDerivedFiles,
       config,
     };
 
@@ -267,12 +282,14 @@ export class ParserConfigManager {
     filePath: string,
     fileTags: string[],
     completedParsers: Set<string>,
-    availableParsers: Map<string, Parser>
+    availableParsers: Map<string, Parser>,
+    isDerivative: boolean = false
   ): Array<{ config: ParserConfig; parser: Parser }> {
     const readyConfigs = this.getReadyConfigs(
       filePath,
       fileTags,
-      completedParsers
+      completedParsers,
+      isDerivative
     );
 
     const results: Array<{ config: ParserConfig; parser: Parser }> = [];
@@ -299,7 +316,29 @@ export class ParserConfigManager {
   }
 
   private getFileExtension(filePath: string): string {
-    const parts = filePath.split(".");
-    return parts.length > 1 ? "." + parts[parts.length - 1].toLowerCase() : "";
+    const filename = filePath.split("/").pop() || filePath;
+    const parts = filename.split(".");
+
+    if (parts.length <= 1) return "";
+
+    // Check for common compound extensions first
+    const compoundExtensions = [
+      ".transcript.txt",
+      ".combined.transcript.txt",
+      ".summary.txt",
+      ".processed.txt",
+      ".converted.txt",
+      ".chunked.txt",
+    ];
+
+    const lowerFilename = filename.toLowerCase();
+    for (const ext of compoundExtensions) {
+      if (lowerFilename.endsWith(ext)) {
+        return ext;
+      }
+    }
+
+    // Fall back to simple extension
+    return "." + parts[parts.length - 1].toLowerCase();
   }
 }

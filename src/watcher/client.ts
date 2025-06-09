@@ -131,7 +131,8 @@ export class FileWatcher {
       const availableParsers = this.parserLoader.getAllParsers();
       const applicableConfigs = this.configManager.getApplicableConfigs(
         filePath,
-        fileTags
+        fileTags,
+        isDerivative
       );
 
       if (applicableConfigs.length === 0) {
@@ -166,7 +167,8 @@ export class FileWatcher {
           filePath,
           fileTags,
           completedParsers,
-          availableParsers
+          availableParsers,
+          isDerivative
         );
 
       console.log(

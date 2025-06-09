@@ -2,8 +2,12 @@ import { Queue, Worker, QueueEvents, Job, type JobType } from "bullmq";
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
 import type { JobData, Parser } from "../types.js";
-import { calculateTranscriptionCost } from "../utils/cost-calculator.js";
-import { statSync, existsSync } from "node:fs";
+import {
+  calculateTranscriptionCost,
+  estimateSummarizationCost,
+  formatCost,
+} from "../utils/cost-calculator.js";
+import { statSync, existsSync, readFileSync } from "node:fs";
 
 export class QueueClient {
   private queue: Queue;
@@ -32,19 +36,33 @@ export class QueueClient {
   ): Promise<void> {
     const jobData: JobData = { path: filePath, parser };
 
-    // Add cost calculation for transcription jobs
-    if (parser === "transcribe" && existsSync(filePath)) {
+    // Add cost calculation for jobs
+    if (existsSync(filePath)) {
       try {
-        const stats = statSync(filePath);
-        const costResult = calculateTranscriptionCost(filePath);
+        if (parser === "transcribe") {
+          const stats = statSync(filePath);
+          const costResult = calculateTranscriptionCost(filePath);
 
-        jobData.fileSizeBytes = stats.size;
-        jobData.estimatedCost = costResult.estimatedCost;
-        jobData.estimatedDurationMinutes = costResult.estimatedDurationMinutes;
+          jobData.fileSizeBytes = stats.size;
+          jobData.estimatedCost = costResult.estimatedCost;
+          jobData.estimatedDurationMinutes =
+            costResult.estimatedDurationMinutes;
 
-        console.log(
-          `💰 Estimated cost for ${filePath}: $${costResult.estimatedCost.toFixed(4)} (${costResult.estimatedDurationMinutes.toFixed(1)}min)`
-        );
+          console.log(
+            `💰 Estimated transcription cost for ${filePath}: ${formatCost(costResult.estimatedCost)} (${costResult.estimatedDurationMinutes.toFixed(1)}min)`
+          );
+        } else if (parser === "summarize") {
+          const content = readFileSync(filePath, "utf-8");
+          const costResult = estimateSummarizationCost(content);
+
+          jobData.estimatedCost = costResult.estimatedCost;
+          jobData.estimatedInputTokens = costResult.estimatedInputTokens;
+          jobData.estimatedOutputTokens = costResult.estimatedOutputTokens;
+
+          console.log(
+            `💰 Estimated summarization cost for ${filePath}: ${formatCost(costResult.estimatedCost)} (${costResult.estimatedInputTokens} input + ${costResult.estimatedOutputTokens} output tokens)`
+          );
+        }
       } catch (error) {
         console.warn(`Failed to calculate cost for ${filePath}:`, error);
       }

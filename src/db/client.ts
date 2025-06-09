@@ -56,6 +56,7 @@ export class DatabaseClient {
         depends_on TEXT NOT NULL DEFAULT '[]', -- JSON array
         is_enabled INTEGER NOT NULL DEFAULT 1,
         allow_user_selection INTEGER NOT NULL DEFAULT 0,
+        allow_derived_files INTEGER NOT NULL DEFAULT 0,
         config TEXT NOT NULL DEFAULT '{}', -- JSON object
         created_at INTEGER NOT NULL DEFAULT (unixepoch()),
         updated_at INTEGER NOT NULL DEFAULT (unixepoch())
@@ -288,9 +289,9 @@ export class DatabaseClient {
     const stmt = this.db.prepare(`
       INSERT INTO parser_configs (
         name, parser_implementation, display_name, description, input_extensions, input_tags,
-        output_ext, depends_on, is_enabled, allow_user_selection, config,
+        output_ext, depends_on, is_enabled, allow_user_selection, allow_derived_files, config,
         created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (name) DO UPDATE SET
         parser_implementation = excluded.parser_implementation,
         display_name = excluded.display_name,
@@ -301,6 +302,7 @@ export class DatabaseClient {
         depends_on = excluded.depends_on,
         is_enabled = excluded.is_enabled,
         allow_user_selection = excluded.allow_user_selection,
+        allow_derived_files = excluded.allow_derived_files,
         config = excluded.config,
         updated_at = excluded.updated_at
       RETURNING *
@@ -317,6 +319,7 @@ export class DatabaseClient {
       JSON.stringify(config.dependsOn),
       config.isEnabled ? 1 : 0,
       config.allowUserSelection ? 1 : 0,
+      config.allowDerivedFiles ? 1 : 0,
       JSON.stringify(config.config),
       now,
       now
@@ -334,6 +337,7 @@ export class DatabaseClient {
       dependsOn: JSON.parse(result.depends_on),
       isEnabled: Boolean(result.is_enabled),
       allowUserSelection: Boolean(result.allow_user_selection),
+      allowDerivedFiles: Boolean(result.allow_derived_files),
       config: JSON.parse(result.config),
       createdAt: result.created_at,
       updatedAt: result.updated_at,
@@ -357,6 +361,7 @@ export class DatabaseClient {
       dependsOn: JSON.parse(result.depends_on),
       isEnabled: Boolean(result.is_enabled),
       allowUserSelection: Boolean(result.allow_user_selection),
+      allowDerivedFiles: Boolean(result.allow_derived_files),
       config: JSON.parse(result.config),
       createdAt: result.created_at,
       updatedAt: result.updated_at,
@@ -378,6 +383,7 @@ export class DatabaseClient {
       dependsOn: JSON.parse(result.depends_on),
       isEnabled: Boolean(result.is_enabled),
       allowUserSelection: Boolean(result.allow_user_selection),
+      allowDerivedFiles: Boolean(result.allow_derived_files || 0), // fallback for existing records
       config: JSON.parse(result.config),
       createdAt: result.created_at,
       updatedAt: result.updated_at,

@@ -33,6 +33,7 @@ export default defineEventHandler(async (event) => {
       dependsOn: body.dependsOn || [],
       isEnabled: body.isEnabled !== false, // Default to true
       allowUserSelection: body.allowUserSelection || false,
+      allowDerivedFiles: body.allowDerivedFiles || false,
       config: body.config || {},
     };
 

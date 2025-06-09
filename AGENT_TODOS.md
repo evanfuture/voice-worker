@@ -92,3 +92,13 @@
 6. Run web interface: `cd src/nuxt-web && npm run dev`
 7. Open browser: `http://localhost:3000`
 8. Drop files in ./dropbox folder and use web interface for management
+
+### Current Tasks - June 2025
+
+**Parser Configuration Management:**
+
+- [x] Add delete functionality for parser configurations in UI
+- [x] Investigate why summarise parser isn't picking up derived .txt files in dropbox (Fixed: getFileExtension method now handles compound extensions like .transcript.txt)
+- [x] Determine if parser configs need option to allow derived/generated files (Added allowDerivedFiles flag to parser configurations)
+- [x] Consider connecting watcher output from first parser to subsequent parsers (Already implemented via job completion handler and dependency system)
+- [x] Update summarize implementation to use real OpenAI GPT-4 Turbo calls with cost calculation integrated into job queue

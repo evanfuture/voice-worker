@@ -31,6 +31,9 @@ export interface JobData {
   fileSizeBytes?: number;
   estimatedCost?: number;
   estimatedDurationMinutes?: number;
+  // Token-based cost info for LLM operations (like summarization)
+  estimatedInputTokens?: number;
+  estimatedOutputTokens?: number;
 }
 
 export interface SystemConfig {
@@ -53,6 +56,7 @@ export interface ParserConfig {
   dependsOn: string[]; // other parser names
   isEnabled: boolean;
   allowUserSelection: boolean; // if true, user can manually select input files
+  allowDerivedFiles: boolean; // if true, can process files that are outputs of other parsers
   config: Record<string, any>; // parser-specific configuration
   createdAt: number;
   updatedAt: number;

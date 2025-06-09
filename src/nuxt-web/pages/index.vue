@@ -51,34 +51,47 @@
 
     <!-- Cost Summary (only show when paused with waiting jobs) -->
     <div
-      v-if="isPaused && costSummary.transcriptionJobCount > 0"
+      v-if="
+        isPaused &&
+        (costSummary.transcriptionJobCount > 0 ||
+          costSummary.summarizationJobCount > 0)
+      "
       class="cost-section"
     >
       <div class="cost-warning">
-        <h3>💰 Estimated Costs for Waiting Transcriptions</h3>
+        <h3>💰 Estimated Costs for Waiting Jobs</h3>
         <div class="cost-details">
-          <div class="cost-item">
-            <span class="cost-label">Total Jobs:</span>
+          <div v-if="costSummary.transcriptionJobCount > 0" class="cost-item">
+            <span class="cost-label">Transcription Jobs:</span>
             <span class="cost-value">{{
               costSummary.transcriptionJobCount
             }}</span>
           </div>
-          <div class="cost-item">
+          <div v-if="costSummary.summarizationJobCount > 0" class="cost-item">
+            <span class="cost-label">Summarization Jobs:</span>
+            <span class="cost-value">{{
+              costSummary.summarizationJobCount
+            }}</span>
+          </div>
+          <div
+            v-if="costSummary.formattedTotalDuration !== '0m'"
+            class="cost-item"
+          >
             <span class="cost-label">Estimated Duration:</span>
             <span class="cost-value">{{
               costSummary.formattedTotalDuration
             }}</span>
           </div>
           <div class="cost-item">
-            <span class="cost-label">Estimated Cost:</span>
+            <span class="cost-label">Total Estimated Cost:</span>
             <span class="cost-value cost-amount">{{
               costSummary.formattedTotalCost
             }}</span>
           </div>
         </div>
         <div class="cost-note">
-          ⚠️ These are estimated costs based on file size. Actual costs may
-          vary.
+          ⚠️ These are estimated costs. Transcription costs based on file size,
+          summarization costs based on content length. Actual costs may vary.
         </div>
       </div>
     </div>
@@ -167,6 +180,7 @@ const costSummary = ref({
   totalCost: 0,
   totalDurationMinutes: 0,
   transcriptionJobCount: 0,
+  summarizationJobCount: 0,
   totalWaitingJobs: 0,
   formattedTotalCost: "$0.00",
   formattedTotalDuration: "0m",

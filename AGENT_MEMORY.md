@@ -79,7 +79,7 @@ The system now uses a hybrid approach that separates concerns:
 **Parser Implementation Files:**
 
 1. **transcribe**: All audio formats → transcript text (handles both small and large files internally)
-2. **summarize**: Transcript → summary (depends on transcribe)
+2. **summarize**: Transcript → summary using OpenAI GPT-4 Turbo with real-time cost calculation
 
 **Parser Configuration Records:**
 
@@ -87,6 +87,8 @@ The system now uses a hybrid approach that separates concerns:
 - Links to parser implementation via `parser_implementation` field
 - Can have multiple configs using the same implementation with different triggers
 - Supports user-selectable execution for manual file processing
+- **NEW: allowDerivedFiles flag controls whether parser can process outputs from other parsers**
+- **NEW: Delete functionality available in UI for removing parser configurations**
 
 **Example Configuration Scenarios:**
 
@@ -99,9 +101,18 @@ The system now uses a hybrid approach that separates concerns:
 1. File detected by watcher
 2. Auto-tagged based on filename patterns (e.g., `.transcript.` → gets `transcript` tag)
 3. System queries database for applicable parser configurations
-4. Matches configurations based on file extension AND tags
+4. Matches configurations based on file extension AND tags AND derived file permissions
 5. Links configurations to parser implementations via `parser_implementation` field
 6. Executes matched parsers with proper dependency ordering
+
+**Key Technical Fixes (June 2025):**
+
+- **Fixed compound extension matching**: `getFileExtension` method now properly recognizes `.transcript.txt`, `.summary.txt` etc.
+- **Added derived file control**: Parser configurations can now specify whether they accept derived/generated files
+- **Enhanced UI**: Parser configuration management includes delete functionality and derived file controls
+- **Real AI Summarization**: Updated summarize parser to use OpenAI GPT-4 Turbo with professional prompting
+- **Comprehensive Cost Tracking**: Extended job queue to calculate and track costs for both transcription (Whisper) and summarization (GPT-4) operations
+- **Enhanced Dashboard**: Cost summary now shows both transcription and summarization job costs with token-level detail
 
 ### Modern Nuxt 3 Web Interface
 

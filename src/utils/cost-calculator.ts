@@ -27,6 +27,10 @@ export const LLM_SERVICES: { [serviceName: string]: LLMServiceConfig } = {
         pricePerMinute: 0.006, // $0.006 per minute (rounded to the nearest second)
         description: "Whisper ASR model for audio transcription",
       },
+      "gpt-4-turbo": {
+        pricePerMinute: 0.0, // Token-based pricing, calculated separately
+        description: "GPT-4 Turbo model for text generation and analysis",
+      },
     },
   },
   // Future services can be added here
@@ -166,4 +170,76 @@ export function formatDuration(minutes: number): string {
   }
 
   return `${hours}h ${remainingMinutes}m`;
+}
+
+/**
+ * Estimates token count for text (rough approximation: ~4 characters per token)
+ */
+export function estimateTokenCount(text: string): number {
+  // Rough approximation: ~4 characters per token for English text
+  return Math.ceil(text.length / 4);
+}
+
+/**
+ * Calculates cost for GPT-4 based on input and output tokens
+ * Pricing as of 2025: GPT-4 Turbo $0.01 per 1K input tokens, $0.03 per 1K output tokens
+ */
+export function calculateGPTCost(
+  inputTokens: number,
+  outputTokens: number,
+  model: string = "gpt-4-turbo"
+): { inputCost: number; outputCost: number; totalCost: number } {
+  let inputPrice: number;
+  let outputPrice: number;
+
+  switch (model) {
+    case "gpt-4-turbo":
+      inputPrice = 0.01 / 1000; // $0.01 per 1K tokens
+      outputPrice = 0.03 / 1000; // $0.03 per 1K tokens
+      break;
+    case "gpt-4":
+      inputPrice = 0.03 / 1000; // $0.03 per 1K tokens
+      outputPrice = 0.06 / 1000; // $0.06 per 1K tokens
+      break;
+    default:
+      throw new Error(`Unknown GPT model: ${model}`);
+  }
+
+  const inputCost = inputTokens * inputPrice;
+  const outputCost = outputTokens * outputPrice;
+  const totalCost = inputCost + outputCost;
+
+  return {
+    inputCost: Math.round(inputCost * 10000) / 10000,
+    outputCost: Math.round(outputCost * 10000) / 10000,
+    totalCost: Math.round(totalCost * 10000) / 10000,
+  };
+}
+
+/**
+ * Estimates summarization cost based on input text length
+ */
+export function estimateSummarizationCost(
+  inputText: string,
+  model: string = "gpt-4-turbo"
+): {
+  estimatedInputTokens: number;
+  estimatedOutputTokens: number;
+  estimatedCost: number;
+  service: string;
+  model: string;
+} {
+  const inputTokens = estimateTokenCount(inputText);
+  // Assume summary is roughly 20% of input length
+  const outputTokens = Math.ceil(inputTokens * 0.2);
+
+  const cost = calculateGPTCost(inputTokens, outputTokens, model);
+
+  return {
+    estimatedInputTokens: inputTokens,
+    estimatedOutputTokens: outputTokens,
+    estimatedCost: cost.totalCost,
+    service: "OpenAI",
+    model,
+  };
 }
