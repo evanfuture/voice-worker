@@ -4,12 +4,14 @@ import { existsSync } from "node:fs";
 import type { DatabaseClient } from "../db/client.js";
 import type { QueueClient } from "../queue/client.js";
 import type { ParserLoader } from "../parsers/loader.js";
+import { ParserConfigManager } from "../parsers/config-manager.js";
 
 export class FileWatcher {
   private watcher: chokidar.FSWatcher | null = null;
   private db: DatabaseClient;
   private queue: QueueClient;
   private parserLoader: ParserLoader;
+  private configManager: ParserConfigManager;
   private watchDir: string;
 
   constructor(
@@ -22,6 +24,7 @@ export class FileWatcher {
     this.db = db;
     this.queue = queue;
     this.parserLoader = parserLoader;
+    this.configManager = new ParserConfigManager(db);
   }
 
   async start(): Promise<void> {
@@ -98,6 +101,20 @@ export class FileWatcher {
       // Catalog the file
       const fileRecord = this.db.upsertFile(filePath, kind);
 
+      // Auto-tag transcript files
+      if (filePath.includes(".transcript.")) {
+        const existingTags = this.db.getFileTags(fileRecord.id);
+        const hasTranscriptTag = existingTags.some(
+          (tag) => tag.tag === "transcript"
+        );
+        if (!hasTranscriptTag) {
+          this.db.addFileTag(fileRecord.id, "transcript");
+          console.log(
+            `🏷️  Auto-tagged ${basename(filePath)} with 'transcript' tag`
+          );
+        }
+      }
+
       // For derivative files, only apply parsers that specifically target them
       // This prevents recursion while allowing legitimate processing chains
       if (isDerivative) {
@@ -107,18 +124,24 @@ export class FileWatcher {
         // Continue to parser processing - the parsers themselves will handle what they can process
       }
 
-      // Get applicable parsers for this file
-      const applicableParsers =
-        this.parserLoader.getApplicableParsers(filePath);
+      // Get file tags for this file
+      const fileTags = this.db.getFileTags(fileRecord.id).map((tag) => tag.tag);
 
-      if (applicableParsers.length === 0) {
+      // Get applicable parser configs for this file (using database configs + file tags)
+      const availableParsers = this.parserLoader.getAllParsers();
+      const applicableConfigs = this.configManager.getApplicableConfigs(
+        filePath,
+        fileTags
+      );
+
+      if (applicableConfigs.length === 0) {
         console.log(
-          `🔍 No parsers available for ${basename(filePath)} (ext: ${extname(filePath)})`
+          `🔍 No parser configs available for ${basename(filePath)} (ext: ${extname(filePath)}, tags: [${fileTags.join(", ")}])`
         );
         return;
       } else {
         console.log(
-          `🔍 Found ${applicableParsers.length} applicable parsers for ${basename(filePath)}: ${applicableParsers.map((p) => p.name).join(", ")}`
+          `🔍 Found ${applicableConfigs.length} applicable parser configs for ${basename(filePath)}: ${applicableConfigs.map((c) => c.name).join(", ")}`
         );
       }
 
@@ -137,20 +160,23 @@ export class FileWatcher {
           .map((parse) => parse.parser)
       );
 
-      // Get ready parsers (those whose dependencies are satisfied)
-      const readyParsers = this.parserLoader.getReadyParsers(
-        filePath,
-        completedParsers
-      );
+      // Get ready parser configs with implementations (those whose dependencies are satisfied)
+      const readyConfigsWithParsers =
+        this.configManager.getReadyConfigsWithParsers(
+          filePath,
+          fileTags,
+          completedParsers,
+          availableParsers
+        );
 
       console.log(
-        `🔍 Ready parsers for ${basename(filePath)}: ${readyParsers.map((p) => p.name).join(", ")} (${readyParsers.length} total)`
+        `🔍 Ready parser configs for ${basename(filePath)}: ${readyConfigsWithParsers.map((r) => r.config.name).join(", ")} (${readyConfigsWithParsers.length} total)`
       );
       console.log(
         `🔍 Completed parsers: ${Array.from(completedParsers).join(", ") || "none"}`
       );
 
-      for (const parser of readyParsers) {
+      for (const { config, parser } of readyConfigsWithParsers) {
         const existingParse = this.db.getParse(fileRecord.id, parser.name);
         console.log(
           `🔍 Checking ${parser.name}: existingParse=${existingParse?.status || "none"}, outputExists=${existingParse?.outputPath ? existsSync(existingParse.outputPath) : "N/A"}`

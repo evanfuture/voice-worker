@@ -39,3 +39,60 @@ export interface SystemConfig {
   redisHost: string;
   redisPort: number;
 }
+
+// NEW: Dynamic parser configuration for database storage
+export interface ParserConfig {
+  id: number;
+  name: string;
+  parserImplementation: string; // name of the parser implementation file to use
+  displayName: string;
+  description: string;
+  inputExtensions: string[]; // file extensions
+  inputTags: string[]; // required file tags
+  outputExt: string;
+  dependsOn: string[]; // other parser names
+  isEnabled: boolean;
+  allowUserSelection: boolean; // if true, user can manually select input files
+  config: Record<string, any>; // parser-specific configuration
+  createdAt: number;
+  updatedAt: number;
+}
+
+// NEW: File metadata and tagging
+export interface FileTag {
+  id: number;
+  fileId: number;
+  tag: string;
+  value: string | null; // optional value for tag (e.g., "priority:high")
+  createdAt: number;
+}
+
+export interface FileMetadata {
+  id: number;
+  fileId: number;
+  key: string;
+  value: string;
+  type: "string" | "number" | "boolean" | "json";
+  createdAt: number;
+  updatedAt: number;
+}
+
+// NEW: Enhanced file record with metadata
+export interface FileRecordWithMetadata extends FileRecord {
+  tags: FileTag[];
+  metadata: FileMetadata[];
+  category?: string;
+  description?: string;
+}
+
+// NEW: Parser execution context with user selections
+export interface ParserExecution {
+  id: number;
+  parserConfigId: number;
+  fileIds: number[]; // files to process (for user-selected inputs)
+  status: "pending" | "processing" | "done" | "failed";
+  outputPaths: string[];
+  error?: string;
+  createdAt: number;
+  updatedAt: number;
+}

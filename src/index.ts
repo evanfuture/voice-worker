@@ -9,6 +9,7 @@ import { dirname } from "node:path";
 import { DatabaseClient } from "./db/client.js";
 import { QueueClient } from "./queue/client.js";
 import { ParserLoader } from "./parsers/loader.js";
+import { ParserConfigManager } from "./parsers/config-manager.js";
 import { FileWatcher } from "./watcher/client.js";
 
 // Get the directory of the current module
@@ -49,6 +50,11 @@ async function main() {
   console.log(
     `✅ Loaded ${parsers.size} parsers: ${Array.from(parsers.keys()).join(", ")}`
   );
+
+  // Initialize parser configurations from hardcoded parsers
+  console.log("🔧 Initializing parser configurations...");
+  const configManager = new ParserConfigManager(db);
+  await configManager.initializeDefaultConfigs(parsers);
 
   // Set up job completion handler
   const handleJobComplete = (result: {

@@ -13,6 +13,7 @@ TypeScript-based file monitoring system that:
 - Handles file deletions by re-queuing dependent jobs
 - Outputs parser results as new files alongside inputs
 - **Provides modern Nuxt 3 web interface for queue control and cost management**
+- **Uses hybrid parser system: hardcoded implementations + database configurations**
 
 ### Tech Stack
 
@@ -34,6 +35,7 @@ TypeScript-based file monitoring system that:
 - CLI controls for queue management
 - Audio chunking for large files before transcription
 - **Real-time web interface with cost controls (migrated to Nuxt 3)**
+- **Hybrid parser configuration system bridging implementations with database configs**
 
 ### Current Transcription Workflow (June 2025)
 
@@ -64,101 +66,76 @@ TypeScript-based file monitoring system that:
 - `file_id` → `fileId`, `output_path` → `outputPath`, etc.
 - All database methods convert field names to match TypeScript interfaces
 
-**Files table:**
+### Hybrid Parser Configuration System
 
-```sql
-CREATE TABLE files (
-  id INTEGER PRIMARY KEY,
-  path TEXT UNIQUE NOT NULL,
-  sha256 TEXT NOT NULL,
-  kind TEXT CHECK (kind IN ('original', 'derivative')),
-  created_at INTEGER DEFAULT (unixepoch()),
-  updated_at INTEGER DEFAULT (unixepoch())
-);
-```
+**Architecture Overview:**
 
-**Parses table:**
+The system now uses a hybrid approach that separates concerns:
 
-```sql
-CREATE TABLE parses (
-  file_id INTEGER,
-  parser TEXT,
-  status TEXT CHECK (status IN ('pending', 'processing', 'done', 'failed')),
-  output_path TEXT,
-  updated_at INTEGER DEFAULT (unixepoch()),
-  error TEXT,
-  PRIMARY KEY (file_id, parser)
-);
-```
+- **Parser Implementations** (`src/parsers/*.ts`): Contain the actual `run()` functions and logic
+- **Parser Configurations** (Database): Control WHEN to run parsers and WHICH implementation to use
+- **Bridge System** (`ParserConfigManager`): Connects configurations to implementations
 
-### Current Parsers
+**Parser Implementation Files:**
 
 1. **transcribe**: All audio formats → transcript text (handles both small and large files internally)
 2. **summarize**: Transcript → summary (depends on transcribe)
 
-### Workflow Summary
+**Parser Configuration Records:**
 
-**All audio files:**
-Audio file → `transcribe` → `.transcript.txt` → `summarize` → `.summary.txt`
+- Each config specifies: input extensions, required tags, output format, dependencies
+- Links to parser implementation via `parser_implementation` field
+- Can have multiple configs using the same implementation with different triggers
+- Supports user-selectable execution for manual file processing
 
-**Deletion recovery:**
-Delete `.transcript.txt` → automatically re-queues transcription of original audio file
+**Example Configuration Scenarios:**
 
-### Modern Nuxt 3 Web Interface (MIGRATED)
+- "auto-summarize-transcripts" → uses `summarize` implementation, triggered by `.txt` + `transcript` tag
+- "manual-summarize-selected" → uses `summarize` implementation, only when user selects files
+- "meeting-transcripts" → uses `transcribe` implementation, triggered by files with `meeting` tag
 
-**New Architecture:**
+**File Processing Flow:**
 
-- `src/nuxt-web/` - Complete Nuxt 3 application
-- `src/nuxt-web/server/api/` - Nitro API routes replacing Express endpoints
-- `src/nuxt-web/server/routes/_ws.ts` - WebSocket handler using experimental support
-- `src/nuxt-web/app.vue` - Vue.js single-page application
+1. File detected by watcher
+2. Auto-tagged based on filename patterns (e.g., `.transcript.` → gets `transcript` tag)
+3. System queries database for applicable parser configurations
+4. Matches configurations based on file extension AND tags
+5. Links configurations to parser implementations via `parser_implementation` field
+6. Executes matched parsers with proper dependency ordering
 
-**Features:**
+### Modern Nuxt 3 Web Interface
 
-- Real-time queue status monitoring via WebSocket (useWebSocket from VueUse)
+**Three-Page Navigation Structure:**
+
+- **Dashboard** (`/`): Queue status, job management, cost controls
+- **Files & Tags** (`/files`): File listing, tagging, metadata management
+- **Parser Configuration** (`/parsers`): Parser config creation and management
+
+**Key Features:**
+
+- Real-time queue status monitoring via WebSocket
 - Pause/Resume queue controls for cost management
-- Job listing with status, timestamps, and actions
-- Individual job retry/remove functionality
-- Clear all completed/failed jobs (safe for multi-Redis environments)
-- Connection status indicator with auto-reconnect
-- Responsive design for mobile/desktop
-- Modern Vue.js reactive interface with TypeScript
-- **Cost estimation and display for transcription jobs**
-- **Warning alerts when queue is paused with waiting high-cost jobs**
+- File tagging and metadata management interface
+- Parser configuration creation with implementation selection
+- Cost estimation and display for transcription jobs
+- Warning alerts when queue is paused with waiting high-cost jobs
 
 **API Endpoints (Nitro):**
 
 - `GET /api/status` - Queue status and pause state
-- `POST /api/pause` - Pause transcription queue
-- `POST /api/resume` - Resume transcription queue
 - `GET /api/jobs` - List all jobs with status
-- `POST /api/jobs/:id/retry` - Retry failed job
-- `DELETE /api/jobs/:id` - Remove job
-- `POST /api/clear-completed` - Clear completed/failed jobs safely
-- `GET /api/files` - List database files
-- **`GET /api/cost-summary` - Get cost estimates for waiting transcription jobs**
+- `GET /api/files-with-metadata` - Files with tags and metadata
+- `GET /api/parser-configs` - Parser configurations with validation
+- `GET /api/available-parsers` - Available parser implementations
+- `POST /api/parser-configs` - Create/update parser configurations
+- `POST/DELETE /api/files/:id/tags` - Tag management
 
-**WebSocket Support:**
+**Parser Configuration UI:**
 
-- `ws://localhost:3000/_ws` - Real-time status updates
-- Uses Nuxt 3 experimental WebSocket support with `defineWebSocketHandler`
-- Automatic reconnection and heartbeat via VueUse
-- Status broadcasts for real-time UI updates
-
-**Running the New Interface:**
-
-- `cd src/nuxt-web && npm run dev` - Development server
-- `cd src/nuxt-web && npm run build && npm run start` - Production
-- Available at `http://localhost:3000`
-- WebSocket automatically connects for real-time updates
-
-**Migration Notes:**
-
-- Original Express server preserved in `src/web/` (archived)
-- `src/web.ts` now shows migration notice and instructions
-- Full feature parity with original interface
-- Modern Vue.js architecture with reactive state management
-- Enhanced with VueUse composables for better UX
+- Dropdown selection of available parser implementations (transcribe, summarize)
+- Form auto-populates with implementation defaults when selected
+- Clear separation between configuration name and implementation choice
+- Validation of dependencies and circular dependency detection
 
 ### System Status
 
@@ -167,18 +144,37 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - File monitoring system with chokidar
 - SQLite database with proper field mapping
 - BullMQ job queue with Redis
-- Dynamic parser loading
-- CLI management tools
 - Unified transcription workflow for all file sizes
 - Deletion recovery system
-- Temp file cleanup
-- Job completion handlers with database updates
-- **Modern Nuxt 3 web interface with Vue.js and WebSocket support**
-- **Real OpenAI Whisper-1 API integration with detailed transcription output**
-- **Environment variable configuration with dotenv**
-- **Error handling and fallback for API failures**
-- **Generic cost calculation system for LLM services with OpenAI Whisper pricing**
-- **Real-time cost display and warnings in web interface**
+- Modern Nuxt 3 web interface with Vue.js and WebSocket support
+- Real OpenAI Whisper-1 API integration with detailed transcription output
+- Generic cost calculation system for LLM services
+- **Hybrid parser configuration system with database storage**
+- **File metadata and tagging system**
+- **Parser configuration UI with implementation selection**
+- **Bridge between hardcoded parsers and database configurations**
+
+📋 **Current limitations:**
+
+- Parser implementations must be hardcoded in TypeScript files
+- Available parsers list is hardcoded in API (Nuxt can't load TS files directly)
+- Database schema changes require manual migration for existing databases
+- Parser configuration validation is basic
+
+### Enhanced File Organization
+
+**Beyond File Extensions:**
+
+- Files can have multiple tags with optional values (e.g., "priority:high")
+- Custom metadata fields with typed values (string, number, boolean, json)
+- Tag-based parser selection (parsers can require specific tags)
+- Automatic tagging based on filename patterns (e.g., `.transcript.` files get `transcript` tag)
+
+**Configuration Examples:**
+
+- Extension-based: `.mp3` files → transcribe parser
+- Tag-based: files with `transcript` tag → summarize parser
+- Hybrid: `.txt` files with `meeting` tag → specialized meeting summary parser
 
 ### Setup Instructions
 
@@ -190,4 +186,4 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 6. Run web interface: `cd src/nuxt-web && npm run dev`
 7. Open browser: `http://localhost:3000`
 8. Drop audio files in ./dropbox folder
-9. Control queue via modern web interface
+9. Use web interface to manage queue, files, and parser configurations

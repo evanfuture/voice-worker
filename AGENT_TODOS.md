@@ -1,128 +1,94 @@
 # Agent Todos
 
-## File Monitoring & Parsing System - Complete ✅
+## File Monitoring & Parsing System - Core Complete ✅
 
-### System Implementation Status
+### Current System State
 
-✅ **Core System Complete:**
+✅ **System Components Implemented:**
 
-- [x] TypeScript project setup with proper dependencies
-- [x] SQLite database with schema and field mapping (snake_case ↔ camelCase)
-- [x] chokidar file watcher with cataloging
-- [x] BullMQ job queue with Redis backend
-- [x] Dynamic parser loading system
-- [x] CLI management tools for queue control
+- [x] File monitoring with chokidar
+- [x] SQLite database with proper field mapping
+- [x] BullMQ job queue with Redis
+- [x] OpenAI Whisper transcription (small and large files)
+- [x] Deletion recovery system
+- [x] Modern Nuxt 3 web interface with three-page navigation
+- [x] Real-time WebSocket updates
+- [x] Cost calculation and management
 
-✅ **Transcription Workflow Complete:**
+✅ **Hybrid Parser Configuration System:**
 
-- [x] Unified transcribe parser for all audio files
-- [x] Small file direct transcription (≤10MB)
-- [x] Large file chunking with FFmpeg (>10MB)
-- [x] Automatic temp file cleanup with proper ES modules
-- [x] Job completion handlers with database updates
-- [x] Deletion recovery system (delete output → re-queue input)
+- [x] Extended database schema with parser_configs, file_tags, file_metadata tables
+- [x] ParserConfigManager bridge between hardcoded implementations and database configs
+- [x] Parser configuration API endpoints
+- [x] Parser configuration UI with implementation selection dropdown
+- [x] File tagging system with automatic tagging (e.g., `.transcript.` files get `transcript` tag)
+- [x] Integration with file processing flow using both extensions and tags
+- [x] Multiple configurations per parser implementation support
 
-✅ **OpenAI Whisper Integration Complete:**
+### Current Architecture Summary
 
-- [x] OpenAI npm package integration
-- [x] Real Whisper-1 API transcription replacing mock functions
-- [x] Proper audio file handling with toFile helper
-- [x] Environment variable loading with dotenv
-- [x] Detailed transcription output with timestamps and segments
-- [x] Error handling and fallback for API failures
-- [x] Support for all OpenAI Whisper audio formats
+**Parser System:**
 
-✅ **Testing Verified:**
+- **Implementations**: Hardcoded TypeScript files (`src/parsers/transcribe.ts`, `src/parsers/summarize.ts`)
+- **Configurations**: Database records that control WHEN to run and WHICH implementation to use
+- **Bridge**: `ParserConfigManager` connects configs to implementations
+- **Processing**: Files matched by extension AND/OR tags trigger appropriate parsers
 
-- [x] Small file transcription working
-- [x] Large file transcription with chunking working
-- [x] Temp file cleanup working
-- [x] Deletion recovery working
-- [x] Database field mapping working
-- [x] Job completion flow working
+**Web Interface:**
 
-### Current Architecture
+- **Dashboard** (`/`): Queue control, job management, cost monitoring
+- **Files & Tags** (`/files`): File organization, tagging, metadata
+- **Parser Config** (`/parsers`): Create and manage parser configurations
 
-**Single Parser Workflow:**
+### Future Enhancement Opportunities
 
-```
-Any audio file → [transcribe with OpenAI Whisper] → .transcript.txt → [summarize] → .summary.txt
-```
+**Parser System Improvements:**
 
-**Transcribe parser internally handles:**
+- [ ] Dynamic TypeScript parser loading (investigate Nuxt TypeScript compilation at runtime)
+- [ ] Parser configuration validation improvements (better dependency cycle detection)
+- [ ] Parser configuration templates/presets for common workflows
+- [ ] Parser configuration export/import functionality
+- [ ] Parser execution history and analytics
 
-- File size detection
-- FFmpeg chunking for large files
-- Individual chunk transcription with OpenAI Whisper API
-- Result merging with timestamps
-- Temp directory cleanup
+**User Interface Enhancements:**
 
-### Complete: Web Frontend for Queue Control ✅
+- [ ] Drag-and-drop file organization in web interface
+- [ ] Bulk file tagging operations
+- [ ] Advanced search and filtering for files
+- [ ] Parser configuration wizard for complex workflows
+- [ ] Visual dependency graph for parser configurations
 
-- [x] Add web server dependencies (express, cors, ws)
-- [x] Create API endpoints for queue control
-- [x] Create modern HTML frontend for queue management
-- [x] Add real-time queue status updates via WebSocket
-- [x] Integrate pause/resume controls with cost management
+**System Architecture:**
 
-### Complete: Production-Ready OpenAI Integration ✅
+- [ ] Database migration system for schema changes
+- [ ] Configuration backup/restore functionality
+- [ ] Multi-user support with permissions
+- [ ] Parser configuration versioning
+- [ ] File processing analytics and reporting
 
-- [x] Real OpenAI Whisper-1 API integration
-- [x] Environment variable configuration
-- [x] Proper error handling and fallback
-- [x] Detailed transcription with segments and timestamps
-- [x] Support for all audio formats
+**Integration & Extensions:**
 
-### Ready for Production Use
+- [ ] Additional parser implementations (e.g., translation, sentiment analysis)
+- [ ] External service integrations beyond OpenAI
+- [ ] File format conversion utilities
+- [ ] Batch processing optimization
+- [ ] API webhooks for external notifications
 
-The system is fully functional with real OpenAI transcription and ready for:
+### Current Limitations
 
-- Production deployment with Redis persistence
-- Real audio transcription using OpenAI's latest Whisper model
-- Cost management through web interface pause/resume controls
-- Additional parser development using the established pattern
-
-### NEW: Cost Calculation System ✅
-
-- [x] Create generic LLM cost calculation utility
-- [x] Add file size to job data structure for cost calculation
-- [x] Research and implement OpenAI Whisper pricing rates ($0.006 per minute)
-- [x] Estimate audio duration from file size for cost calculation
-- [x] Add cost display to waiting jobs in web interface
-- [x] Add total projected cost for all waiting jobs
-- [x] Create cost calculator that works for different LLM services
-- [x] Add cost warnings/alerts when queue is paused with high cost items
+- Parser implementations must be hardcoded in TypeScript files
+- Available parsers list is hardcoded in API due to Nuxt/TypeScript loading constraints
+- Database schema changes require manual migration
+- No built-in backup/restore for configurations
+- Basic validation for parser configuration dependencies
 
 ### Setup Instructions
 
 1. Install dependencies: `npm install`
-2. Create .env file with your OpenAI API key: `OPENAI_API_KEY=your_key_here`
-3. Ensure FFmpeg is installed and available in PATH
+2. Create .env file: `OPENAI_API_KEY=your_key_here`
+3. Ensure FFmpeg is available in PATH
 4. Start Redis: `docker run -d -p 6379:6379 redis:alpine`
 5. Run system: `npm run dev`
-6. Run web interface: `npm run web` (optional, separate terminal)
+6. Run web interface: `cd src/nuxt-web && npm run dev`
 7. Open browser: `http://localhost:3000`
-8. Drop audio files in ./dropbox folder
-9. Control queue via web interface or CLI
-
-### Future Enhancement Opportunities
-
-- [ ] Test real transcription with various audio file formats
-- [ ] Add more file format support
-- [ ] Implement parser parallelization for large files
-- [ ] Add parser configuration system
-- [ ] Implement parser result caching
-- [ ] Add transcription cost monitoring and budgets
-
-- [x] Install Nuxt and set up a new Nuxt app in a separate directory (e.g., src/nuxt-web)
-- [x] Configure Nuxt for TypeScript and basic project structure
-- [x] Verify Nuxt app runs independently (dev mode)
-- [x] Plan migration of existing web server logic and static assets
-- [x] Add necessary dependencies for Nuxt app (ws, express middleware for compat)
-- [x] Create Nuxt server API routes to replace Express endpoints (/api/status, /api/pause, etc.)
-- [x] Implement WebSocket support in Nuxt server middleware (solved with experimental.websocket + defineWebSocketHandler)
-- [x] Migrate HTML interface to Nuxt pages/components with Vue.js
-- [x] Convert vanilla CSS/JS to Vue components with VueUse WebSocket and reactive state
-- [x] Test Nuxt app for feature parity with original web app
-- [x] Update web entry point to use Nuxt app instead of Express server (migration notice provided)
-- [x] Archive old web app/server (preserved in src/web/ for reference)
+8. Drop files in ./dropbox folder and use web interface for management
