@@ -12,6 +12,7 @@ TypeScript-based file monitoring system that:
 - Manages a job queue with pause/resume controls
 - Handles file deletions by re-queuing dependent jobs
 - Outputs parser results as new files alongside inputs
+- **Provides web interface for queue control and cost management**
 
 ### Tech Stack
 
@@ -21,6 +22,8 @@ TypeScript-based file monitoring system that:
 - better-sqlite3 for metadata storage
 - Dynamic parser loading system
 - FFmpeg for audio processing
+- **Express.js + WebSocket for web interface**
+- **Modern vanilla HTML/CSS/JS frontend**
 
 ### Architecture
 
@@ -29,6 +32,7 @@ TypeScript-based file monitoring system that:
 - Multi-stage processing support
 - CLI controls for queue management
 - Audio chunking for large files before transcription
+- **Real-time web interface with cost controls**
 
 ### Current Transcription Workflow (Jan 2025)
 
@@ -96,6 +100,50 @@ Audio file → `transcribe` → `.transcript.txt` → `summarize` → `.summary.
 **Deletion recovery:**
 Delete `.transcript.txt` → automatically re-queues transcription of original audio file
 
+### Web Interface for Queue Control (COMPLETE)
+
+**Components:**
+
+- `src/web/server.ts` - Express.js server with WebSocket support
+- `src/web/public/index.html` - Modern single-page web interface
+- `src/web.ts` - Standalone web server entry point
+
+**Features:**
+
+- Real-time queue status monitoring via WebSocket
+- Pause/Resume queue controls for cost management
+- Job listing with status, timestamps, and actions
+- Individual job retry/remove functionality
+- Clear all completed/failed jobs (safe for multi-Redis environments)
+- Connection status indicator with auto-reconnect
+- Responsive design for mobile/desktop
+- Modern UI with gradients and animations
+
+**API Endpoints:**
+
+- `GET /api/status` - Queue status and pause state
+- `POST /api/pause` - Pause transcription queue
+- `POST /api/resume` - Resume transcription queue
+- `GET /api/jobs` - List all jobs with status
+- `POST /api/jobs/:id/retry` - Retry failed job
+- `DELETE /api/jobs/:id` - Remove job
+- `POST /api/clear-completed` - Clear completed/failed jobs safely
+- `GET /api/files` - List database files
+
+**Running:**
+
+- `npm run web` - Start web interface on port 3000
+- `npm run dev` - Start main system (file watcher + queue worker)
+- Both can run simultaneously for full functionality
+
+**Important Notes:**
+
+- Web interface operates independently of main system
+- Uses separate QueueClient and DatabaseClient instances
+- Safe job clearing only affects Voice Worker queue, not other Redis apps
+- WebSocket provides real-time updates every 5 seconds
+- Cost control via pause/resume prevents unexpected transcription charges
+
 ### System Status
 
 ✅ **Complete and working:**
@@ -109,6 +157,7 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 - Deletion recovery system
 - Temp file cleanup
 - Job completion handlers with database updates
+- **Web interface for queue control and cost management**
 
 ### Setup Instructions
 
@@ -116,5 +165,7 @@ Delete `.transcript.txt` → automatically re-queues transcription of original a
 2. Ensure FFmpeg is installed and available in PATH
 3. Start Redis: `docker run -d -p 6379:6379 redis:alpine`
 4. Run system: `npm run dev`
-5. Drop audio files in ./dropbox folder
-6. Delete output files to test recovery system
+5. Run web interface: `npm run web` (optional, separate terminal)
+6. Open browser: `http://localhost:3000`
+7. Drop audio files in ./dropbox folder
+8. Control queue via web interface or CLI

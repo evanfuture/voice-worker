@@ -1,0 +1,608 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Voice Worker - Queue Control</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      body {
+        font-family:
+          -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu,
+          Cantarell, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1200px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+
+      .header {
+        background: linear-gradient(90deg, #4f46e5, #7c3aed);
+        color: white;
+        padding: 2rem;
+        text-align: center;
+      }
+
+      .header h1 {
+        font-size: 2rem;
+        margin-bottom: 0.5rem;
+      }
+
+      .header p {
+        opacity: 0.9;
+        font-size: 1.1rem;
+      }
+
+      .main-content {
+        padding: 2rem;
+      }
+
+      .controls {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        justify-content: center;
+        flex-wrap: wrap;
+      }
+
+      .btn {
+        padding: 0.75rem 1.5rem;
+        border: none;
+        border-radius: 8px;
+        font-size: 1rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .btn:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .btn-primary {
+        background: #10b981;
+        color: white;
+      }
+
+      .btn-primary:hover {
+        background: #059669;
+      }
+
+      .btn-danger {
+        background: #ef4444;
+        color: white;
+      }
+
+      .btn-danger:hover {
+        background: #dc2626;
+      }
+
+      .btn-secondary {
+        background: #6b7280;
+        color: white;
+      }
+
+      .btn-secondary:hover {
+        background: #4b5563;
+      }
+
+      .btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        transform: none;
+      }
+
+      .status-section {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+      }
+
+      .status-card {
+        background: #f8fafc;
+        border-radius: 8px;
+        padding: 1.5rem;
+        border-left: 4px solid #4f46e5;
+      }
+
+      .status-card h3 {
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+        font-size: 1.1rem;
+      }
+
+      .status-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #4f46e5;
+      }
+
+      .status-indicator {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+      }
+
+      .status-running {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .status-paused {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .jobs-section {
+        margin-top: 2rem;
+      }
+
+      .jobs-section h2 {
+        color: #1f2937;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 2px solid #e5e7eb;
+      }
+
+      .jobs-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 1rem;
+        background: white;
+        border-radius: 8px;
+        overflow: hidden;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      .jobs-table th,
+      .jobs-table td {
+        padding: 1rem;
+        text-align: left;
+        border-bottom: 1px solid #e5e7eb;
+      }
+
+      .jobs-table th {
+        background: #f9fafb;
+        font-weight: 600;
+        color: #374151;
+      }
+
+      .jobs-table tr:hover {
+        background: #f9fafb;
+      }
+
+      .job-status {
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+      }
+
+      .status-waiting {
+        background: #dbeafe;
+        color: #1e40af;
+      }
+
+      .status-active {
+        background: #fef3c7;
+        color: #92400e;
+      }
+
+      .status-completed {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .status-failed {
+        background: #fee2e2;
+        color: #dc2626;
+      }
+
+      .job-actions {
+        display: flex;
+        gap: 0.5rem;
+      }
+
+      .btn-small {
+        padding: 0.25rem 0.75rem;
+        font-size: 0.75rem;
+      }
+
+      .connection-status {
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        z-index: 1000;
+      }
+
+      .connected {
+        background: #dcfce7;
+        color: #166534;
+      }
+
+      .disconnected {
+        background: #fee2e2;
+        color: #dc2626;
+      }
+
+      .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #6b7280;
+      }
+
+      @media (max-width: 768px) {
+        .controls {
+          flex-direction: column;
+        }
+
+        .status-section {
+          grid-template-columns: 1fr;
+        }
+
+        .jobs-table {
+          font-size: 0.875rem;
+        }
+
+        .jobs-table th,
+        .jobs-table td {
+          padding: 0.75rem 0.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="connection-status" id="connectionStatus">
+      <span id="connectionText">Connecting...</span>
+    </div>
+
+    <div class="container">
+      <div class="header">
+        <h1>🎙️ Voice Worker</h1>
+        <p>Transcription Queue Control Center</p>
+      </div>
+
+      <div class="main-content">
+        <div class="controls">
+          <button id="pauseBtn" class="btn btn-danger">⏸️ Pause Queue</button>
+          <button id="resumeBtn" class="btn btn-primary">
+            ▶️ Resume Queue
+          </button>
+          <button id="refreshBtn" class="btn btn-secondary">🔄 Refresh</button>
+          <button id="clearBtn" class="btn btn-secondary">
+            🗑️ Clear Completed
+          </button>
+        </div>
+
+        <div class="status-section">
+          <div class="status-card">
+            <h3>Queue Status</h3>
+            <div id="queueStatus" class="status-indicator status-running">
+              Running
+            </div>
+          </div>
+          <div class="status-card">
+            <h3>Waiting Jobs</h3>
+            <div id="waitingJobs" class="status-value">-</div>
+          </div>
+          <div class="status-card">
+            <h3>Active Jobs</h3>
+            <div id="activeJobs" class="status-value">-</div>
+          </div>
+          <div class="status-card">
+            <h3>Completed Jobs</h3>
+            <div id="completedJobs" class="status-value">-</div>
+          </div>
+          <div class="status-card">
+            <h3>Failed Jobs</h3>
+            <div id="failedJobs" class="status-value">-</div>
+          </div>
+        </div>
+
+        <div class="jobs-section">
+          <h2>📋 Current Jobs</h2>
+          <div id="jobsLoading" class="loading">Loading jobs...</div>
+          <table id="jobsTable" class="jobs-table" style="display: none">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Parser</th>
+                <th>File</th>
+                <th>Status</th>
+                <th>Created</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="jobsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      class VoiceWorkerUI {
+        constructor() {
+          this.ws = null;
+          this.connected = false;
+          this.initElements();
+          this.initWebSocket();
+          this.initEventListeners();
+          this.loadJobs();
+        }
+
+        initElements() {
+          this.elements = {
+            connectionStatus: document.getElementById("connectionStatus"),
+            connectionText: document.getElementById("connectionText"),
+            pauseBtn: document.getElementById("pauseBtn"),
+            resumeBtn: document.getElementById("resumeBtn"),
+            refreshBtn: document.getElementById("refreshBtn"),
+            clearBtn: document.getElementById("clearBtn"),
+            queueStatus: document.getElementById("queueStatus"),
+            waitingJobs: document.getElementById("waitingJobs"),
+            activeJobs: document.getElementById("activeJobs"),
+            completedJobs: document.getElementById("completedJobs"),
+            failedJobs: document.getElementById("failedJobs"),
+            jobsLoading: document.getElementById("jobsLoading"),
+            jobsTable: document.getElementById("jobsTable"),
+            jobsTableBody: document.getElementById("jobsTableBody"),
+          };
+        }
+
+        initWebSocket() {
+          const protocol =
+            window.location.protocol === "https:" ? "wss:" : "ws:";
+          const wsUrl = `${protocol}//${window.location.host}`;
+
+          this.ws = new WebSocket(wsUrl);
+
+          this.ws.onopen = () => {
+            console.log("WebSocket connected");
+            this.connected = true;
+            this.updateConnectionStatus();
+          };
+
+          this.ws.onmessage = (event) => {
+            const message = JSON.parse(event.data);
+            if (message.type === "status") {
+              this.updateStatus(message.data);
+            }
+          };
+
+          this.ws.onclose = () => {
+            console.log("WebSocket disconnected");
+            this.connected = false;
+            this.updateConnectionStatus();
+            // Reconnect after 3 seconds
+            setTimeout(() => this.initWebSocket(), 3000);
+          };
+
+          this.ws.onerror = (error) => {
+            console.error("WebSocket error:", error);
+          };
+        }
+
+        initEventListeners() {
+          this.elements.pauseBtn.addEventListener("click", () =>
+            this.pauseQueue()
+          );
+          this.elements.resumeBtn.addEventListener("click", () =>
+            this.resumeQueue()
+          );
+          this.elements.refreshBtn.addEventListener("click", () =>
+            this.loadJobs()
+          );
+          this.elements.clearBtn.addEventListener("click", () =>
+            this.clearCompleted()
+          );
+        }
+
+        updateConnectionStatus() {
+          const status = this.elements.connectionStatus;
+          const text = this.elements.connectionText;
+
+          if (this.connected) {
+            status.className = "connection-status connected";
+            text.textContent = "🟢 Connected";
+          } else {
+            status.className = "connection-status disconnected";
+            text.textContent = "🔴 Disconnected";
+          }
+        }
+
+        updateStatus(data) {
+          const { queue, isPaused } = data;
+
+          // Update queue status
+          const statusEl = this.elements.queueStatus;
+          if (isPaused) {
+            statusEl.textContent = "Paused";
+            statusEl.className = "status-indicator status-paused";
+          } else {
+            statusEl.textContent = "Running";
+            statusEl.className = "status-indicator status-running";
+          }
+
+          // Update job counts
+          this.elements.waitingJobs.textContent = queue.waiting || 0;
+          this.elements.activeJobs.textContent = queue.active || 0;
+          this.elements.completedJobs.textContent = queue.completed || 0;
+          this.elements.failedJobs.textContent = queue.failed || 0;
+
+          // Update button states
+          this.elements.pauseBtn.disabled = isPaused;
+          this.elements.resumeBtn.disabled = !isPaused;
+        }
+
+        async pauseQueue() {
+          try {
+            const response = await fetch("/api/pause", { method: "POST" });
+            const result = await response.json();
+            if (result.success) {
+              console.log("Queue paused successfully");
+            }
+          } catch (error) {
+            console.error("Failed to pause queue:", error);
+            alert("Failed to pause queue");
+          }
+        }
+
+        async resumeQueue() {
+          try {
+            const response = await fetch("/api/resume", { method: "POST" });
+            const result = await response.json();
+            if (result.success) {
+              console.log("Queue resumed successfully");
+            }
+          } catch (error) {
+            console.error("Failed to resume queue:", error);
+            alert("Failed to resume queue");
+          }
+        }
+
+        async loadJobs() {
+          try {
+            this.elements.jobsLoading.style.display = "block";
+            this.elements.jobsTable.style.display = "none";
+
+            const response = await fetch("/api/jobs");
+            const jobs = await response.json();
+
+            this.renderJobs(jobs);
+
+            this.elements.jobsLoading.style.display = "none";
+            this.elements.jobsTable.style.display = "table";
+          } catch (error) {
+            console.error("Failed to load jobs:", error);
+            this.elements.jobsLoading.textContent = "Failed to load jobs";
+          }
+        }
+
+        renderJobs(jobs) {
+          const tbody = this.elements.jobsTableBody;
+          tbody.innerHTML = "";
+
+          if (jobs.length === 0) {
+            tbody.innerHTML =
+              '<tr><td colspan="6" style="text-align: center; color: #6b7280;">No jobs found</td></tr>';
+            return;
+          }
+
+          jobs.forEach((job) => {
+            const row = document.createElement("tr");
+            const fileName = job.data.path
+              ? job.data.path.split("/").pop()
+              : "Unknown";
+            const createdAt = job.createdAt
+              ? new Date(job.createdAt).toLocaleString()
+              : "-";
+
+            row.innerHTML = `
+                        <td>${job.id}</td>
+                        <td>${job.name || job.data.parser}</td>
+                        <td title="${job.data.path}">${fileName}</td>
+                        <td><span class="job-status status-${job.status}">${job.status}</span></td>
+                        <td>${createdAt}</td>
+                        <td>
+                            <div class="job-actions">
+                                ${job.status === "failed" ? `<button class="btn btn-primary btn-small" onclick="ui.retryJob('${job.id}')">Retry</button>` : ""}
+                                <button class="btn btn-danger btn-small" onclick="ui.removeJob('${job.id}')">Remove</button>
+                            </div>
+                        </td>
+                    `;
+            tbody.appendChild(row);
+          });
+        }
+
+        async retryJob(jobId) {
+          try {
+            const response = await fetch(`/api/jobs/${jobId}/retry`, {
+              method: "POST",
+            });
+            const result = await response.json();
+            if (result.success) {
+              console.log(`Job ${jobId} retried successfully`);
+              this.loadJobs();
+            }
+          } catch (error) {
+            console.error("Failed to retry job:", error);
+            alert("Failed to retry job");
+          }
+        }
+
+        async removeJob(jobId) {
+          if (!confirm("Are you sure you want to remove this job?")) {
+            return;
+          }
+
+          try {
+            const response = await fetch(`/api/jobs/${jobId}`, {
+              method: "DELETE",
+            });
+            const result = await response.json();
+            if (result.success) {
+              console.log(`Job ${jobId} removed successfully`);
+              this.loadJobs();
+            }
+          } catch (error) {
+            console.error("Failed to remove job:", error);
+            alert("Failed to remove job");
+          }
+        }
+
+        async clearCompleted() {
+          if (
+            !confirm(
+              "Are you sure you want to clear all completed and failed jobs?"
+            )
+          ) {
+            return;
+          }
+
+          try {
+            const response = await fetch("/api/clear-completed", {
+              method: "POST",
+            });
+            const result = await response.json();
+            if (result.success) {
+              console.log("Completed jobs cleared successfully");
+              this.loadJobs();
+            }
+          } catch (error) {
+            console.error("Failed to clear completed jobs:", error);
+            alert("Failed to clear completed jobs");
+          }
+        }
+      }
+
+      // Initialize the UI
+      const ui = new VoiceWorkerUI();
+    </script>
+  </body>
+</html>

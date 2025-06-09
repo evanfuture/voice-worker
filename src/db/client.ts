@@ -193,6 +193,21 @@ export class DatabaseClient {
     };
   }
 
+  getAllFiles(): FileRecord[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM files ORDER BY created_at DESC"
+    );
+    const results = stmt.all() as any[];
+    return results.map((result) => ({
+      id: result.id,
+      path: result.path,
+      sha256: result.sha256,
+      kind: result.kind,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    }));
+  }
+
   close(): void {
     this.db.close();
   }

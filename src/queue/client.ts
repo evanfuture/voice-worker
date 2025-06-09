@@ -107,6 +107,10 @@ export class QueueClient {
     return await this.queue.getJobCounts();
   }
 
+  async isPaused(): Promise<boolean> {
+    return await this.queue.isPaused();
+  }
+
   async retryJob(jobId: string): Promise<void> {
     const job = await this.queue.getJob(jobId);
     if (job) {
@@ -125,6 +129,12 @@ export class QueueClient {
     types: JobType[] = ["waiting", "active", "completed", "failed"]
   ) {
     return await this.queue.getJobs(types);
+  }
+
+  async clearCompletedJobs(): Promise<number> {
+    await this.queue.clean(0, 1000, "completed");
+    await this.queue.clean(0, 1000, "failed");
+    return 0; // BullMQ doesn't return count, but this signals success
   }
 
   async close(): Promise<void> {
