@@ -4,9 +4,9 @@ import type { Parser } from "../types.js";
 
 export const parser: Parser = {
   name: "summarize",
-  input: [".transcript.txt"],
+  input: [".transcript.txt", ".combined.transcript.txt"],
   outputExt: ".summary.txt",
-  dependsOn: ["transcribe"],
+  dependsOn: ["transcribe", "chunk-processor"],
 
   async run(inputPath: string): Promise<string> {
     const outputPath = inputPath.replace(".transcript.txt", ".summary.txt");

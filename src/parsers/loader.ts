@@ -15,7 +15,10 @@ export class ParserLoader {
     try {
       const files = await readdir(this.parsersDir);
       const parserFiles = files.filter(
-        (file: string) => extname(file) === ".ts" || extname(file) === ".js"
+        (file: string) =>
+          (extname(file) === ".ts" || extname(file) === ".js") &&
+          file !== "loader.ts" &&
+          file !== "loader.js"
       );
 
       for (const file of parserFiles) {

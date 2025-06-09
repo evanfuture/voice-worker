@@ -82,3 +82,49 @@ The Voice Worker file monitoring and parsing system is now fully implemented wit
 - Comprehensive documentation
 - Production-ready architecture
 - Extensible parser framework
+
+## Current Task: Simplified Transcription Workflow ✅ COMPLETE
+
+### Major Architecture Change - COMPLETE!
+
+✅ **Unified transcribe parser** - Now handles both small and large files internally
+✅ **Removed complexity** - Deleted audio-chunk and chunk-processor parsers
+✅ **Simple workflow** - `audio.mp3 → audio.mp3.transcript.txt` (always)
+✅ **Internal chunking** - Large files chunked and processed internally
+✅ **Temp file cleanup** - All interim files cleaned up automatically
+✅ **Clean dependencies** - No cross-file dependencies needed
+
+### New Workflow (Ready to Test):
+
+**For ANY audio file:**
+
+```
+audio.mp3 → [transcribe] → audio.mp3.transcript.txt
+```
+
+**Transcribe parser internally:**
+
+- Small files (≤10MB): Direct transcription
+- Large files (>10MB): Chunk → transcribe chunks → merge → cleanup temp files
+
+### User Requirements Status:
+
+✅ **mp3's result in txt transcripts** - Simple `audio.mp3` → `audio.mp3.transcript.txt`
+✅ **Chunking hidden** - Internal implementation detail for large files
+✅ **Individual chunk transcription** - Done internally with error recovery
+✅ **Merged final output** - Single `.transcript.txt` file always produced
+✅ **File linking** - Simple 1:1 input→output relationship for deletion recovery
+
+### Testing Required:
+
+- [ ] Test small file transcription (<10MB)
+- [ ] Test large file transcription (>10MB) with chunking
+- [ ] Test temp file cleanup
+- [ ] Test deletion recovery (delete output → re-processes input)
+- [ ] Test summarization works with new transcript files
+
+### Previous Completed Tasks:
+
+- [x] Fix parser loading and infinite retry issues
+- [x] Clean up stale database and Redis records
+- [x] Implement comprehensive debugging

@@ -28,7 +28,10 @@ export class FileWatcher {
     console.log(`Starting file watcher on: ${this.watchDir}`);
 
     this.watcher = chokidar.watch(this.watchDir, {
-      ignored: /(^|[\/\\])\../, // ignore dotfiles
+      ignored: [
+        /(^|[\/\\])\../, // ignore dotfiles
+        "**/tmp/**", // ignore entire tmp directory (includes chunks)
+      ],
       persistent: true,
       ignoreInitial: false,
       depth: 3, // reasonable depth limit
@@ -58,7 +61,14 @@ export class FileWatcher {
     console.log(`File deleted: ${basename(filePath)}`);
 
     // Find any parses that had this file as output and mark them as pending
+    console.log(`🔍 Checking for parses with output: ${filePath}`);
     const affectedParses = this.db.markParsesAsPendingByOutputPath(filePath);
+
+    if (affectedParses.length > 0) {
+      console.log(`📝 Found ${affectedParses.length} parses to re-queue`);
+    } else {
+      console.log(`📝 No parses found with this output path`);
+    }
 
     // Remove the file from our database
     this.db.deleteFile(filePath);
@@ -68,9 +78,13 @@ export class FileWatcher {
       const file = this.db.getFileById(parse.fileId);
       if (file && existsSync(file.path)) {
         console.log(
-          `Re-queuing ${parse.parser} for ${basename(file.path)} (output was deleted)`
+          `🔄 Re-queuing ${parse.parser} for ${basename(file.path)} (output was deleted)`
         );
         await this.queue.enqueueJob(parse.parser, file.path);
+      } else {
+        console.log(
+          `⚠️  Cannot re-queue ${parse.parser}: source file ${file?.path || "unknown"} not found`
+        );
       }
     }
   }
@@ -84,20 +98,42 @@ export class FileWatcher {
       // Catalog the file
       const fileRecord = this.db.upsertFile(filePath, kind);
 
+      // For derivative files, only apply parsers that specifically target them
+      // This prevents recursion while allowing legitimate processing chains
+      if (isDerivative) {
+        console.log(
+          `Cataloged derivative file: ${basename(filePath)} (checking for applicable parsers)`
+        );
+        // Continue to parser processing - the parsers themselves will handle what they can process
+      }
+
       // Get applicable parsers for this file
       const applicableParsers =
         this.parserLoader.getApplicableParsers(filePath);
 
       if (applicableParsers.length === 0) {
-        console.log(`No parsers available for ${basename(filePath)}`);
+        console.log(
+          `🔍 No parsers available for ${basename(filePath)} (ext: ${extname(filePath)})`
+        );
         return;
+      } else {
+        console.log(
+          `🔍 Found ${applicableParsers.length} applicable parsers for ${basename(filePath)}: ${applicableParsers.map((p) => p.name).join(", ")}`
+        );
       }
 
-      // Get completed parsers for this file
+      // Get completed parsers for this file (must be done AND output file must exist)
       const existingParses = this.db.getFileParses(fileRecord.id);
       const completedParsers = new Set(
         existingParses
-          .filter((parse) => parse.status === "done")
+          .filter((parse) => {
+            // Parser must be marked as done AND output file must actually exist
+            return (
+              parse.status === "done" &&
+              parse.outputPath &&
+              existsSync(parse.outputPath)
+            );
+          })
           .map((parse) => parse.parser)
       );
 
@@ -107,22 +143,43 @@ export class FileWatcher {
         completedParsers
       );
 
+      console.log(
+        `🔍 Ready parsers for ${basename(filePath)}: ${readyParsers.map((p) => p.name).join(", ")} (${readyParsers.length} total)`
+      );
+      console.log(
+        `🔍 Completed parsers: ${Array.from(completedParsers).join(", ") || "none"}`
+      );
+
       for (const parser of readyParsers) {
         const existingParse = this.db.getParse(fileRecord.id, parser.name);
+        console.log(
+          `🔍 Checking ${parser.name}: existingParse=${existingParse?.status || "none"}, outputExists=${existingParse?.outputPath ? existsSync(existingParse.outputPath) : "N/A"}`
+        );
 
         // Only enqueue if not already done or processing
+        // For "done" status, also verify the output file actually exists
+        const isActuallyDone =
+          existingParse?.status === "done" &&
+          existingParse.outputPath &&
+          existsSync(existingParse.outputPath);
+
         if (
           !existingParse ||
           existingParse.status === "pending" ||
-          existingParse.status === "failed"
+          existingParse.status === "failed" ||
+          (existingParse.status === "done" && !isActuallyDone)
         ) {
-          console.log(`Enqueuing ${parser.name} for ${basename(filePath)}`);
+          console.log(`✅ Enqueuing ${parser.name} for ${basename(filePath)}`);
 
           // Mark as pending in database
           this.db.upsertParse(fileRecord.id, parser.name, "pending");
 
           // Add to queue
           await this.queue.enqueueJob(parser.name, filePath);
+        } else {
+          console.log(
+            `⏭️  Skipping ${parser.name} (status: ${existingParse.status})`
+          );
         }
       }
     } catch (error) {
@@ -137,6 +194,10 @@ export class FileWatcher {
       ".summary.",
       ".processed.",
       ".converted.",
+      ".chunked.",
+      ".chunked_", // Also catch old-style chunked files
+      ".chunks.",
+      ".combined.",
     ];
     return derivativeMarkers.some((marker) => filename.includes(marker));
   }
