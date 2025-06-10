@@ -96,6 +96,54 @@ Please check:
   }
 }
 
+// Function to get audio stream count from a file
+async function getAudioStreamCount(inputPath: string): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const ffprobeArgs = [
+      "-i",
+      inputPath,
+      "-select_streams",
+      "a",
+      "-show_entries",
+      "stream=index",
+      "-of",
+      "csv=p=0",
+    ];
+
+    const ffprobe = spawn("ffprobe", ffprobeArgs);
+    let stdout = "";
+    let stderr = "";
+
+    ffprobe.stdout.on("data", (data) => {
+      stdout += data.toString();
+    });
+
+    ffprobe.stderr.on("data", (data) => {
+      stderr += data.toString();
+    });
+
+    ffprobe.on("close", (code) => {
+      if (code === 0) {
+        const streamCount = stdout
+          .trim()
+          .split("\n")
+          .filter((line) => line.trim()).length;
+        resolve(Math.max(1, streamCount)); // At least 1 stream
+      } else {
+        console.warn(
+          `ffprobe failed for ${inputPath}, assuming 1 audio stream`
+        );
+        resolve(1); // Fallback to 1 stream
+      }
+    });
+
+    ffprobe.on("error", (error) => {
+      console.warn(`ffprobe error for ${inputPath}:`, error.message);
+      resolve(1); // Fallback to 1 stream
+    });
+  });
+}
+
 // Function to chunk large audio files using FFmpeg
 async function chunkAudioFile(
   inputPath: string,
@@ -112,24 +160,56 @@ async function chunkAudioFile(
   const outputPattern = join(chunksDir, `${inputName}.chunk_%03d.mp3`);
   const chunkDurationSeconds = 300; // 5 minutes for safe chunk size
 
+  // Detect number of audio streams
+  const audioStreamCount = await getAudioStreamCount(inputPath);
+  console.log(`  Detected ${audioStreamCount} audio stream(s)`);
+
   await new Promise<void>((resolve, reject) => {
-    const ffmpegArgs = [
-      "-i",
-      inputPath,
-      "-f",
-      "segment",
-      "-segment_time",
-      chunkDurationSeconds.toString(),
-      "-segment_format",
-      "mp3",
-      "-reset_timestamps",
-      "1",
-      "-map",
-      "0:a", // Only audio stream
-      "-c",
-      "copy", // Copy without re-encoding
-      outputPattern,
-    ];
+    let ffmpegArgs: string[];
+
+    if (audioStreamCount === 1) {
+      // Single stream: simple mapping
+      ffmpegArgs = [
+        "-i",
+        inputPath,
+        "-map",
+        "0:a:0",
+        "-f",
+        "segment",
+        "-segment_time",
+        chunkDurationSeconds.toString(),
+        "-segment_format",
+        "mp3",
+        "-reset_timestamps",
+        "1",
+        "-acodec",
+        "libmp3lame",
+        "-ab",
+        "192k",
+        outputPattern,
+      ];
+    } else {
+      // Multiple streams: mix them together
+      ffmpegArgs = [
+        "-i",
+        inputPath,
+        "-filter_complex",
+        `amix=inputs=${audioStreamCount}:duration=longest:dropout_transition=0`,
+        "-f",
+        "segment",
+        "-segment_time",
+        chunkDurationSeconds.toString(),
+        "-segment_format",
+        "mp3",
+        "-reset_timestamps",
+        "1",
+        "-acodec",
+        "libmp3lame",
+        "-ab",
+        "192k",
+        outputPattern,
+      ];
+    }
 
     const ffmpeg = spawn("ffmpeg", ffmpegArgs);
 
@@ -164,11 +244,16 @@ async function chunkAudioFile(
 
 export const parser: Parser = {
   name: "transcribe",
-  input: [".m4a", ".wav", ".mp3", ".mp4", ".mov"],
+  input: [".m4a", ".wav", ".mp3"],
   outputExt: ".transcript.txt",
   dependsOn: [],
 
   async run(inputPath: string): Promise<string> {
+    // Check if input file exists before processing
+    if (!existsSync(inputPath)) {
+      throw new Error(`Input file no longer exists: ${inputPath}`);
+    }
+
     const stats = statSync(inputPath);
     const fileSizeMB = stats.size / (1024 * 1024);
     const outputPath = inputPath + ".transcript.txt";

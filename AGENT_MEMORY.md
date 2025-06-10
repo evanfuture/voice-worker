@@ -39,7 +39,7 @@ TypeScript-based file monitoring system that:
 
 ### Current Transcription Workflow (June 2025)
 
-**Unified transcribe parser handles all audio files with OpenAI Whisper:**
+**Unified transcribe processor handles all audio/video files with OpenAI Whisper:**
 
 - Small files (≤10MB): Direct OpenAI Whisper-1 API transcription
 - Large files (>10MB): Internal chunking → transcribe chunks with OpenAI → merge → cleanup temp files
@@ -47,6 +47,7 @@ TypeScript-based file monitoring system that:
 - Chunking is internal implementation detail, invisible to user
 - Automatic temp file cleanup with proper ES module imports
 - Real transcription with timestamps, segments, and duration information
+- **Intelligent multi-stream audio handling**: Automatically detects and mixes multiple audio streams from video files (e.g., OBS recordings with webcam, microphone, system audio)
 
 **Key Implementation Details:**
 
@@ -72,7 +73,7 @@ TypeScript-based file monitoring system that:
 
 The system now uses a hybrid approach that separates concerns:
 
-- **Parser Implementations** (`src/parsers/*.ts`): Contain the actual `run()` functions and logic
+- **Parser Implementations** (`src/processors/*.ts`): Contain the actual `run()` functions and logic
 - **Parser Configurations** (Database): Control WHEN to run parsers and WHICH implementation to use
 - **Bridge System** (`ParserConfigManager`): Connects configurations to implementations
 

@@ -5,7 +5,7 @@
 export default defineEventHandler(async (_event) => {
   try {
     // Hardcoded list of available parser implementations
-    // This matches the actual parser files in src/parsers/
+    // This matches the actual processor files in src/processors/
     const availableParsers = [
       {
         name: "transcribe",
@@ -29,6 +29,13 @@ export default defineEventHandler(async (_event) => {
         outputExt: ".summary.txt",
         dependsOn: [],
         description: "Creates summaries from transcript files",
+      },
+      {
+        name: "convert-video",
+        inputExtensions: [".mov", ".mp4", ".avi", ".mkv", ".webm", ".flv"],
+        outputExt: ".mp3",
+        dependsOn: [],
+        description: "Converts video files to MP3 audio files using FFmpeg",
       },
     ];
 

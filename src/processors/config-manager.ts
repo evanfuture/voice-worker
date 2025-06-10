@@ -315,7 +315,7 @@ export class ParserConfigManager {
       .join(" ");
   }
 
-  private getFileExtension(filePath: string): string {
+  public getFileExtension(filePath: string): string {
     const filename = filePath.split("/").pop() || filePath;
     const parts = filename.split(".");
 

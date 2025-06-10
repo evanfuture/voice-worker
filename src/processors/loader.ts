@@ -5,15 +5,15 @@ import type { Parser } from "../types.js";
 
 export class ParserLoader {
   private parsers: Map<string, Parser> = new Map();
-  private parsersDir: string;
+  private processorsDir: string;
 
-  constructor(parsersDir: string) {
-    this.parsersDir = parsersDir;
+  constructor(processorsDir: string) {
+    this.processorsDir = processorsDir;
   }
 
   async loadParsers(): Promise<void> {
     try {
-      const files = await readdir(this.parsersDir);
+      const files = await readdir(this.processorsDir);
       const parserFiles = files.filter(
         (file: string) =>
           (extname(file) === ".ts" || extname(file) === ".js") &&
@@ -23,7 +23,7 @@ export class ParserLoader {
 
       for (const file of parserFiles) {
         try {
-          const filePath = join(this.parsersDir, file);
+          const filePath = join(this.processorsDir, file);
           const fileUrl = pathToFileURL(filePath).href;
           const module = await import(fileUrl);
 

@@ -8,8 +8,8 @@ import { dirname } from "node:path";
 
 import { DatabaseClient } from "./db/client.js";
 import { QueueClient } from "./queue/client.js";
-import { ParserLoader } from "./parsers/loader.js";
-import { ParserConfigManager } from "./parsers/config-manager.js";
+import { ParserLoader } from "./processors/loader.js";
+import { ParserConfigManager } from "./processors/config-manager.js";
 import { FileWatcher } from "./watcher/client.js";
 
 // Get the directory of the current module
@@ -23,8 +23,90 @@ const config = {
   dbPath: join(projectRoot, "data.db"),
   redisHost: "127.0.0.1",
   redisPort: 6379,
-  parsersDir: join(__dirname, "parsers"),
+  processorsDir: join(__dirname, "processors"),
 };
+
+// Function to sync database parse records with actual queue state
+async function syncDatabaseWithQueue(db: DatabaseClient, queue: QueueClient) {
+  try {
+    const queueJobs = await queue.getJobs(["waiting", "active"]);
+    const allFiles = db.getAllFiles();
+
+    let synced = 0;
+    let deletedFiles = 0;
+    let removedJobs = 0;
+
+    // First, check for files in database that no longer exist on disk
+    for (const file of allFiles) {
+      if (!existsSync(file.path)) {
+        console.log(`  🗑️  File no longer exists: ${file.path}`);
+
+        // Remove any pending jobs for this file
+        const jobsToRemove = queueJobs.filter(
+          (job) => job.data.path === file.path
+        );
+        for (const job of jobsToRemove) {
+          console.log(
+            `    ❌ Removing orphaned job ${job.id}: ${job.name} for ${file.path}`
+          );
+          try {
+            await queue.removeJob(job.id!);
+            removedJobs++;
+          } catch (error) {
+            console.warn(`    ⚠️  Failed to remove job ${job.id}:`, error);
+          }
+        }
+
+        // Remove file from database (this will cascade delete parses, tags, metadata)
+        db.deleteFile(file.path);
+        deletedFiles++;
+        continue;
+      }
+
+      // For existing files, check parse records
+      const fileParses = db.getFileParses(file.id);
+
+      for (const parse of fileParses) {
+        // If database says "pending" but there's no job in queue, mark as failed
+        if (parse.status === "pending") {
+          const hasQueueJob = queueJobs.some(
+            (job) => job.name === parse.parser && job.data.path === file.path
+          );
+
+          if (!hasQueueJob) {
+            // Reset to allow re-queuing
+            console.log(
+              `  🔄 Resetting orphaned parse: ${parse.parser} for ${file.path}`
+            );
+            db.upsertParse(
+              file.id,
+              parse.parser,
+              "failed",
+              undefined,
+              "Process interrupted during restart"
+            );
+            synced++;
+          }
+        }
+      }
+    }
+
+    // Summary
+    const changes = [];
+    if (deletedFiles > 0)
+      changes.push(`${deletedFiles} deleted files cleaned up`);
+    if (removedJobs > 0) changes.push(`${removedJobs} orphaned jobs removed`);
+    if (synced > 0) changes.push(`${synced} orphaned parse records synced`);
+
+    if (changes.length > 0) {
+      console.log(`  ✅ Cleanup complete: ${changes.join(", ")}`);
+    } else {
+      console.log(`  ✅ Database and queue are in sync`);
+    }
+  } catch (error) {
+    console.warn(`  ⚠️  Failed to sync database with queue:`, error);
+  }
+}
 
 async function main() {
   console.log("🚀 Starting Voice Worker System");
@@ -40,7 +122,7 @@ async function main() {
 
   const db = new DatabaseClient(config.dbPath);
   const queue = new QueueClient(config.redisHost, config.redisPort);
-  const parserLoader = new ParserLoader(config.parsersDir);
+  const parserLoader = new ParserLoader(config.processorsDir);
 
   // Load parsers
   console.log("📦 Loading parsers...");
@@ -122,6 +204,10 @@ async function main() {
     parsers,
     handleJobComplete
   );
+
+  // Clean up database state to match queue state
+  console.log("🧹 Syncing database with queue state...");
+  await syncDatabaseWithQueue(db, queue);
 
   // Start file watcher
   const watcher = new FileWatcher(config.watchDir, db, queue, parserLoader);

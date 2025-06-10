@@ -3,8 +3,8 @@ import { basename, extname } from "node:path";
 import { existsSync } from "node:fs";
 import type { DatabaseClient } from "../db/client.js";
 import type { QueueClient } from "../queue/client.js";
-import type { ParserLoader } from "../parsers/loader.js";
-import { ParserConfigManager } from "../parsers/config-manager.js";
+import type { ParserLoader } from "../processors/loader.js";
+import { ParserConfigManager } from "../processors/config-manager.js";
 
 export class FileWatcher {
   private watcher: chokidar.FSWatcher | null = null;
@@ -136,8 +136,10 @@ export class FileWatcher {
       );
 
       if (applicableConfigs.length === 0) {
+        // Use the same extension detection logic as the config manager
+        const detectedExt = this.configManager.getFileExtension(filePath);
         console.log(
-          `🔍 No parser configs available for ${basename(filePath)} (ext: ${extname(filePath)}, tags: [${fileTags.join(", ")}])`
+          `🔍 No parser configs available for ${basename(filePath)} (ext: ${detectedExt}, tags: [${fileTags.join(", ")}])`
         );
         return;
       } else {
@@ -191,19 +193,36 @@ export class FileWatcher {
           existingParse.outputPath &&
           existsSync(existingParse.outputPath);
 
+        // Also check if there's already a job in the queue for this parser+file combination
+        const existingQueueJobs = await this.queue.getJobs([
+          "waiting",
+          "active",
+        ]);
+        const hasExistingQueueJob = existingQueueJobs.some(
+          (job) => job.name === parser.name && job.data.path === filePath
+        );
+
         if (
           !existingParse ||
           existingParse.status === "pending" ||
           existingParse.status === "failed" ||
           (existingParse.status === "done" && !isActuallyDone)
         ) {
-          console.log(`✅ Enqueuing ${parser.name} for ${basename(filePath)}`);
+          if (hasExistingQueueJob) {
+            console.log(
+              `⏭️  Skipping ${parser.name} for ${basename(filePath)} (already in queue)`
+            );
+          } else {
+            console.log(
+              `✅ Enqueuing ${parser.name} for ${basename(filePath)}`
+            );
 
-          // Mark as pending in database
-          this.db.upsertParse(fileRecord.id, parser.name, "pending");
+            // Mark as pending in database
+            this.db.upsertParse(fileRecord.id, parser.name, "pending");
 
-          // Add to queue
-          await this.queue.enqueueJob(parser.name, filePath);
+            // Add to queue
+            await this.queue.enqueueJob(parser.name, filePath);
+          }
         } else {
           console.log(
             `⏭️  Skipping ${parser.name} (status: ${existingParse.status})`

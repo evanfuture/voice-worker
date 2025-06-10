@@ -22,6 +22,9 @@ export class DatabaseClient {
   }
 
   private initializeSchema() {
+    // Run any necessary migrations first
+    this.runMigrations();
+
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +114,27 @@ export class DatabaseClient {
       CREATE INDEX IF NOT EXISTS idx_file_metadata_key ON file_metadata (key);
       CREATE INDEX IF NOT EXISTS idx_parser_executions_status ON parser_executions (status);
     `);
+  }
+
+  private runMigrations() {
+    // Check if we need to add allow_derived_files column to parser_configs table
+    try {
+      // Try to query the column - if it fails, we need to add it
+      const stmt = this.db.prepare(
+        "SELECT allow_derived_files FROM parser_configs LIMIT 1"
+      );
+      stmt.get();
+    } catch (error) {
+      // Column doesn't exist, add it
+      console.log(
+        "🔄 Running database migration: adding allow_derived_files column..."
+      );
+      this.db.exec(`
+        ALTER TABLE parser_configs
+        ADD COLUMN allow_derived_files INTEGER NOT NULL DEFAULT 0
+      `);
+      console.log("✅ Migration completed successfully");
+    }
   }
 
   upsertFile(
