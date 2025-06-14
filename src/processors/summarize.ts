@@ -8,6 +8,7 @@ import {
   estimateTokenCount,
   formatCost,
 } from "../utils/cost-calculator.js";
+import { ChatModel } from "openai/resources/shared.mjs";
 
 // Initialize OpenAI client with API key from environment
 const openai = new OpenAI({
@@ -22,7 +23,7 @@ export const parser: Parser = {
 
   async run(inputPath: string): Promise<string> {
     const outputPath = inputPath.replace(/\.transcript\.txt$/, ".summary.txt");
-    const model = "gpt-4-turbo";
+    const model: ChatModel = "gpt-4.1";
 
     console.log(`Summarizing transcript: ${basename(inputPath)}`);
 
@@ -55,22 +56,20 @@ export const parser: Parser = {
       );
 
       // Create the summarization prompt
-      const systemPrompt = `You are a professional transcript summarizer. Create a comprehensive yet concise summary of the provided transcript. Include:
+      const systemPrompt = `You are a professional transcript summarizer, specialized in analyzing creative ideation sessions. Your goal is to extract the most valuable insights, ideas, and potential content seeds from the provided transcript. Create a comprehensive yet concise summary, focusing on elements that could be developed further. Include:
 
-1. KEY TOPICS: Main themes and subjects discussed
-2. IMPORTANT POINTS: Critical information, decisions, or insights
-3. ACTION ITEMS: Any tasks, next steps, or follow-ups mentioned
-4. NOTABLE QUOTES: Significant statements or quotes if relevant
-5. CONCLUSION: Overall takeaway or outcome
-
-Format your response in clear sections with bullet points where appropriate. Keep the summary focused and actionable.`;
+1.  CORE IDEAS / KEY INSIGHTS: Identify the 1-3 most promising or novel ideas, concepts, or significant realizations expressed by the speaker. Focus on what seems new, surprising, or like a potential breakthrough for a creative project.
+2.  POTENTIAL SCRIPT/CONTENT FODDER: Extract specific segments, anecdotes, questions raised, or distinct thought threads that could directly inspire or be incorporated into a script or other content. Note *why* it's interesting (e.g., "a strong visual metaphor," "a unique take on X," "a clear problem statement").
+3.  POTENTIAL ACTIONABLE NEXT STEPS (if any): List any explicitly stated or strongly implied tasks, research points, or next steps the speaker intends to take *related to the ideas discussed*. Differentiate between general self-talk and concrete intentions.
+4.  NOTABLE QUOTES / PHRASES: Significant, memorable, or particularly articulate statements that capture a key thought.
+5.  OVERALL THEME/PURPOSE (if discernible): Briefly describe the main underlying goal or theme of the ideation session, even if it's exploratory.`;
 
       const userPrompt = `Please summarize this transcript:
 
 ${cleanContent}`;
 
       // Call OpenAI API
-      console.log(`  Calling GPT-4 Turbo for summarization...`);
+      console.log(`  Calling ${model} for summarization...`);
       const response = await openai.chat.completions.create({
         model: model,
         messages: [
