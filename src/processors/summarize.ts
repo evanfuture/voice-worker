@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from "node:fs";
-import { basename } from "node:path";
+import { basename, join } from "node:path";
 import type { Parser } from "../types.js";
 import OpenAI from "openai";
 import {
@@ -32,7 +32,10 @@ export const parser: Parser = {
   outputExt: ".summary.txt",
   dependsOn: [], // Remove dependency to allow manual selection
 
-  async run(inputPath: string): Promise<string> {
+  async run(
+    inputPath: string,
+    config: Record<string, any> = {}
+  ): Promise<string> {
     const outputPath = inputPath.replace(/\.transcript\.txt$/, ".summary.txt");
     const model: ChatModel = "gpt-4.1";
 
@@ -66,15 +69,12 @@ export const parser: Parser = {
         `  Estimated cost: ${formatCost(costEstimate.estimatedCost)} (${costEstimate.estimatedInputTokens} input + ${costEstimate.estimatedOutputTokens} output tokens)`
       );
 
-      // Create the summarization prompt
-      const systemPrompt = `You are a professional transcript summarizer, specialized in analyzing creative ideation sessions. Your goal is to extract the most valuable insights, ideas, and potential content seeds from the provided transcript, with a specific focus on identifying questions being asked within the content. Create a comprehensive yet concise summary, focusing on elements that could be developed further. Include:
+      // Load the summarization prompt from file
+      const promptPath = config.promptPath
+        ? join(process.cwd(), config.promptPath)
+        : join(process.cwd(), "prompts", "summarize.md");
 
-1.  QUESTIONS BEING ASKED: Identify and list all direct questions, implied questions, or areas of inquiry that the speaker is exploring. This includes rhetorical questions, questions posed to the audience, self-questioning, and any areas where the speaker is seeking answers or solutions. Note the context and significance of each question.
-2.  CORE IDEAS / KEY INSIGHTS: Identify the 1-3 most promising or novel ideas, concepts, or significant realizations expressed by the speaker. Focus on what seems new, surprising, or like a potential breakthrough for a creative project.
-3.  POTENTIAL SCRIPT/CONTENT FODDER: Extract specific segments, anecdotes, questions raised, or distinct thought threads that could directly inspire or be incorporated into a script or other content. Note *why* it's interesting (e.g., "a strong visual metaphor," "a unique take on X," "a clear problem statement").
-4.  POTENTIAL ACTIONABLE NEXT STEPS (if any): List any explicitly stated or strongly implied tasks, research points, or next steps the speaker intends to take *related to the ideas discussed*. Differentiate between general self-talk and concrete intentions.
-5.  NOTABLE QUOTES / PHRASES: Significant, memorable, or particularly articulate statements that capture a key thought.
-6.  OVERALL THEME/PURPOSE (if discernible): Briefly describe the main underlying goal or theme of the ideation session, even if it's exploratory.`;
+      const systemPrompt = readFileSync(promptPath, "utf-8");
 
       const userPrompt = `Please summarize this transcript:
 

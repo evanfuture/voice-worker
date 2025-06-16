@@ -22,7 +22,7 @@ export interface Parser {
   input: string[]; // file extensions like ['.m4a', '.wav', '.mp3']
   outputExt: string;
   dependsOn: string[]; // other parser names that must complete first
-  run(inputPath: string): Promise<string>; // returns output path
+  run(inputPath: string, config?: Record<string, any>): Promise<string>; // returns output path
 }
 
 export interface JobData {

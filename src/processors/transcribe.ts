@@ -262,7 +262,7 @@ export const parser: Parser = {
   outputExt: ".transcript.txt",
   dependsOn: [],
 
-  async run(inputPath: string): Promise<string> {
+  async run(inputPath: string, _config: Record<string, any> = {}): Promise<string> {
     // Check if input file exists before processing
     if (!existsSync(inputPath)) {
       throw new Error(`Input file no longer exists: ${inputPath}`);
