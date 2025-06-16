@@ -107,7 +107,11 @@ export const parser: Parser = {
 - **Input**: `.transcript.txt`
 - **Output**: `.summary.txt`
 - **Dependencies**: `transcribe`
-- **Purpose**: Generate summaries from transcripts
+- **Purpose**: Generate summaries from transcripts using a prompt loaded from `prompts/summarize.md`
+
+### Prompt Files
+
+Prompt templates are stored in the `prompts/` directory. By default the summarization parser loads `prompts/summarize.md`. You can edit this file or specify a different `promptPath` in the parser configuration.
 
 ## CLI Commands
 

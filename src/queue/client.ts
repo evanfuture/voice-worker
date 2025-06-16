@@ -2,6 +2,7 @@ import { Queue, Worker, QueueEvents, Job, type JobType } from "bullmq";
 import { createClient } from "redis";
 import type { RedisClientType } from "redis";
 import type { JobData, Parser } from "../types.js";
+import type { DatabaseClient } from "../db/client.js";
 import {
   calculateTranscriptionCost,
   estimateSummarizationCost,
@@ -84,6 +85,7 @@ export class QueueClient {
     redisHost: string,
     redisPort: number,
     parsers: Map<string, Parser>,
+    db: DatabaseClient,
     onJobComplete?: (result: {
       outputPath: string;
       parser: string;
@@ -104,8 +106,11 @@ export class QueueClient {
           throw new Error(`Parser "${parserName}" not found`);
         }
 
+        const parserConfig = db.getParserConfig(parserName);
+        const config = parserConfig?.config || {};
+
         console.log(`Processing ${parserName} for ${filePath}`);
-        const outputPath = await parser.run(filePath);
+        const outputPath = await parser.run(filePath, config);
         console.log(`Completed ${parserName}: ${outputPath}`);
 
         return { outputPath, parser: parserName, inputPath: filePath };

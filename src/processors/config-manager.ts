@@ -49,7 +49,10 @@ export class ParserConfigManager {
           isEnabled: true,
           allowUserSelection: false, // Default to automatic based on extensions
           allowDerivedFiles: parser.name === "summarize", // Allow derived files for summarize parser by default
-          config: {}, // Parser-specific configuration
+          config:
+            parser.name === "summarize"
+              ? { promptPath: "prompts/summarize.md" }
+              : {}, // Parser-specific configuration
         };
 
         this.db.upsertParserConfig(defaultConfig);

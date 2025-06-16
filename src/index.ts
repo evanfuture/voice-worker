@@ -202,6 +202,7 @@ async function main() {
     config.redisHost,
     config.redisPort,
     parsers,
+    db,
     handleJobComplete
   );
 
