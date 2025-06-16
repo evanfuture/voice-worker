@@ -101,6 +101,28 @@ export class FileWatcher {
       // Catalog the file
       const fileRecord = this.db.upsertFile(filePath, kind);
 
+      // Check queue mode - if in approval mode, only catalog files, don't auto-process
+      const queueMode = this.db.getSetting("queue_mode") || "auto";
+      if (queueMode === "approval") {
+        console.log(
+          `📋 Approval mode: cataloged ${basename(filePath)} but waiting for user approval`
+        );
+
+        // Still update predicted jobs for the approval interface
+        const fileTags = this.db
+          .getFileTags(fileRecord.id)
+          .map((tag) => tag.tag);
+        const availableParsers = this.parserLoader.getAllParsers();
+        await this.configManager.updatePredictedJob(
+          fileRecord.id,
+          filePath,
+          fileTags,
+          availableParsers
+        );
+
+        return; // Don't auto-process in approval mode
+      }
+
       // Auto-tag transcript files
       if (filePath.includes(".transcript.")) {
         const existingTags = this.db.getFileTags(fileRecord.id);

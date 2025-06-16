@@ -12,49 +12,117 @@ export class ParserLoader {
   }
 
   async loadParsers(): Promise<void> {
+    console.log(
+      `🔍 ParserLoader DEBUG: Starting loadParsers() with directory: ${this.processorsDir}`
+    );
+    console.log(
+      `🔍 ParserLoader DEBUG: Current working directory: ${process.cwd()}`
+    );
+
     try {
+      console.log(
+        `🔍 ParserLoader DEBUG: About to read directory: ${this.processorsDir}`
+      );
       const files = await readdir(this.processorsDir);
+      console.log(`🔍 ParserLoader DEBUG: Found ${files.length} files:`, files);
+
       const parserFiles = files.filter(
         (file: string) =>
           (extname(file) === ".ts" || extname(file) === ".js") &&
           file !== "loader.ts" &&
           file !== "loader.js"
       );
+      console.log(
+        `🔍 ParserLoader DEBUG: Filtered to ${parserFiles.length} parser files:`,
+        parserFiles
+      );
 
       for (const file of parserFiles) {
         try {
           const filePath = join(this.processorsDir, file);
           const fileUrl = pathToFileURL(filePath).href;
+          console.log(
+            `🔍 ParserLoader DEBUG: Attempting to import ${file} from ${fileUrl}`
+          );
+
           const module = await import(fileUrl);
+          console.log(
+            `🔍 ParserLoader DEBUG: Successfully imported ${file}, keys:`,
+            Object.keys(module)
+          );
 
           if (module.parser && this.isValidParser(module.parser)) {
             this.parsers.set(module.parser.name, module.parser);
-            console.log(`Loaded parser: ${module.parser.name}`);
+            console.log(
+              `🔍 ParserLoader DEBUG: ✅ Loaded parser: ${module.parser.name}`
+            );
           } else {
             console.warn(
-              `Invalid parser in ${file}: missing or invalid parser export`
+              `🔍 ParserLoader DEBUG: ❌ Invalid parser in ${file}: missing or invalid parser export. Module:`,
+              module
             );
           }
         } catch (error) {
-          console.error(`Failed to load parser from ${file}:`, error);
+          console.error(
+            `🔍 ParserLoader DEBUG: ❌ Failed to load parser from ${file}:`,
+            error
+          );
+          if (error instanceof Error) {
+            console.error(
+              `🔍 ParserLoader DEBUG: Error message: ${error.message}`
+            );
+            console.error(`🔍 ParserLoader DEBUG: Error stack: ${error.stack}`);
+          }
         }
       }
 
+      console.log(
+        `🔍 ParserLoader DEBUG: Final parser count: ${this.parsers.size}`
+      );
+      console.log(
+        `🔍 ParserLoader DEBUG: Final parser names:`,
+        Array.from(this.parsers.keys())
+      );
+
       this.validateDependencies();
     } catch (error) {
-      console.error("Failed to load parsers:", error);
+      console.error("🔍 ParserLoader DEBUG: ❌ Failed to load parsers:", error);
+      if (error instanceof Error) {
+        console.error(
+          `🔍 ParserLoader DEBUG: Top-level error message: ${error.message}`
+        );
+        console.error(
+          `🔍 ParserLoader DEBUG: Top-level error stack: ${error.stack}`
+        );
+      }
     }
   }
 
   private isValidParser(parser: any): parser is Parser {
-    return (
+    const valid =
       typeof parser === "object" &&
       typeof parser.name === "string" &&
       Array.isArray(parser.input) &&
       typeof parser.outputExt === "string" &&
       Array.isArray(parser.dependsOn) &&
-      typeof parser.run === "function"
-    );
+      typeof parser.run === "function";
+
+    if (!valid) {
+      console.log(
+        `🔍 ParserLoader DEBUG: Parser validation failed for:`,
+        parser
+      );
+      console.log(`🔍 ParserLoader DEBUG: Validation details:`, {
+        isObject: typeof parser === "object",
+        hasName: typeof parser?.name === "string",
+        hasInput: Array.isArray(parser?.input),
+        hasOutputExt: typeof parser?.outputExt === "string",
+        hasDependsOn: Array.isArray(parser?.dependsOn),
+        hasRun: typeof parser?.run === "function",
+      });
+    }
+
+    return valid;
   }
 
   private validateDependencies(): void {

@@ -22,6 +22,13 @@
             📊 Dashboard
           </NuxtLink>
           <NuxtLink
+            to="/approval"
+            class="nav-link"
+            :class="{ active: $route.path === '/approval' }"
+          >
+            📋 Batch Approval
+          </NuxtLink>
+          <NuxtLink
             to="/files"
             class="nav-link"
             :class="{ active: $route.path === '/files' }"
@@ -84,41 +91,41 @@ const connectionStatusText = computed(() =>
 <style scoped>
 .app-layout {
   min-height: 100vh;
-  background: #f8fafc;
+  background: var(--color-background-page);
 }
 
 .connection-status {
   position: sticky;
   top: 0;
   z-index: 1000;
-  padding: 4px 16px;
+  padding: var(--size-spacing-xs) var(--size-spacing-lg);
   text-align: center;
-  font-size: 0.875rem;
-  font-weight: 500;
+  font-size: var(--typography-font-size-sm);
+  font-weight: var(--typography-font-weight-medium);
   transition: all 0.3s ease;
 }
 
 .connection-status.connected {
-  background: #10b981;
+  background: var(--color-status-success);
   color: white;
 }
 
 .connection-status.disconnected {
-  background: #ef4444;
+  background: var(--color-status-error);
   color: white;
 }
 
 .navbar {
-  background: white;
-  border-bottom: 1px solid #e5e7eb;
-  padding: 16px 0;
-  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  background: var(--color-background-card);
+  border-bottom: 1px solid var(--color-neutral-200);
+  padding: var(--size-spacing-lg) 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .nav-container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 20px;
+  padding: 0 var(--size-spacing-xl);
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -126,62 +133,62 @@ const connectionStatusText = computed(() =>
 
 .nav-brand h1 {
   margin: 0;
-  font-size: 1.5rem;
-  color: #1f2937;
+  font-size: var(--typography-font-size-xl);
+  color: var(--color-text-primary);
 }
 
 .nav-brand p {
   margin: 0;
-  font-size: 0.875rem;
-  color: #6b7280;
+  font-size: var(--typography-font-size-sm);
+  color: var(--color-text-secondary);
 }
 
 .nav-links {
   display: flex;
-  gap: 24px;
+  gap: var(--size-spacing-2xl);
 }
 
 .nav-link {
   text-decoration: none;
-  color: #6b7280;
-  font-weight: 500;
-  padding: 8px 16px;
-  border-radius: 6px;
+  color: var(--color-text-secondary);
+  font-weight: var(--typography-font-weight-medium);
+  padding: var(--size-spacing-sm) var(--size-spacing-lg);
+  border-radius: var(--size-border-radius-md);
   transition: all 0.2s ease;
 }
 
 .nav-link:hover {
-  color: #1f2937;
-  background: #f3f4f6;
+  color: var(--color-text-primary);
+  background: var(--color-background-hover);
 }
 
 .nav-link.active {
-  color: #2563eb;
-  background: #dbeafe;
+  color: var(--color-brand-primary);
+  background: var(--color-background-active);
 }
 
 .main-content {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: var(--size-spacing-xl);
 }
 
 /* Mobile responsive */
 @media (max-width: 768px) {
   .nav-container {
     flex-direction: column;
-    gap: 16px;
+    gap: var(--size-spacing-lg);
   }
 
   .nav-links {
     flex-wrap: wrap;
     justify-content: center;
-    gap: 12px;
+    gap: var(--size-spacing-md);
   }
 
   .nav-link {
-    font-size: 0.875rem;
-    padding: 6px 12px;
+    font-size: var(--typography-font-size-sm);
+    padding: var(--size-spacing-xs) var(--size-spacing-md);
   }
 }
 </style>

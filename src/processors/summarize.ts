@@ -10,10 +10,21 @@ import {
 } from "../utils/cost-calculator.js";
 import { ChatModel } from "openai/resources/shared.mjs";
 
-// Initialize OpenAI client with API key from environment
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization of OpenAI client to avoid import-time API key requirement
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "OPENAI_API_KEY environment variable is required for summarization"
+      );
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
+}
 
 export const parser: Parser = {
   name: "summarize",
@@ -56,17 +67,21 @@ export const parser: Parser = {
       );
 
       // Create the summarization prompt
-      const systemPrompt = `You are a professional transcript summarizer, specialized in analyzing creative ideation sessions. Your goal is to extract the most valuable insights, ideas, and potential content seeds from the provided transcript. Create a comprehensive yet concise summary, focusing on elements that could be developed further. Include:
+      const systemPrompt = `You are a professional transcript summarizer, specialized in analyzing creative ideation sessions. Your goal is to extract the most valuable insights, ideas, and potential content seeds from the provided transcript, with a specific focus on identifying questions being asked within the content. Create a comprehensive yet concise summary, focusing on elements that could be developed further. Include:
 
-1.  CORE IDEAS / KEY INSIGHTS: Identify the 1-3 most promising or novel ideas, concepts, or significant realizations expressed by the speaker. Focus on what seems new, surprising, or like a potential breakthrough for a creative project.
-2.  POTENTIAL SCRIPT/CONTENT FODDER: Extract specific segments, anecdotes, questions raised, or distinct thought threads that could directly inspire or be incorporated into a script or other content. Note *why* it's interesting (e.g., "a strong visual metaphor," "a unique take on X," "a clear problem statement").
-3.  POTENTIAL ACTIONABLE NEXT STEPS (if any): List any explicitly stated or strongly implied tasks, research points, or next steps the speaker intends to take *related to the ideas discussed*. Differentiate between general self-talk and concrete intentions.
-4.  NOTABLE QUOTES / PHRASES: Significant, memorable, or particularly articulate statements that capture a key thought.
-5.  OVERALL THEME/PURPOSE (if discernible): Briefly describe the main underlying goal or theme of the ideation session, even if it's exploratory.`;
+1.  QUESTIONS BEING ASKED: Identify and list all direct questions, implied questions, or areas of inquiry that the speaker is exploring. This includes rhetorical questions, questions posed to the audience, self-questioning, and any areas where the speaker is seeking answers or solutions. Note the context and significance of each question.
+2.  CORE IDEAS / KEY INSIGHTS: Identify the 1-3 most promising or novel ideas, concepts, or significant realizations expressed by the speaker. Focus on what seems new, surprising, or like a potential breakthrough for a creative project.
+3.  POTENTIAL SCRIPT/CONTENT FODDER: Extract specific segments, anecdotes, questions raised, or distinct thought threads that could directly inspire or be incorporated into a script or other content. Note *why* it's interesting (e.g., "a strong visual metaphor," "a unique take on X," "a clear problem statement").
+4.  POTENTIAL ACTIONABLE NEXT STEPS (if any): List any explicitly stated or strongly implied tasks, research points, or next steps the speaker intends to take *related to the ideas discussed*. Differentiate between general self-talk and concrete intentions.
+5.  NOTABLE QUOTES / PHRASES: Significant, memorable, or particularly articulate statements that capture a key thought.
+6.  OVERALL THEME/PURPOSE (if discernible): Briefly describe the main underlying goal or theme of the ideation session, even if it's exploratory.`;
 
       const userPrompt = `Please summarize this transcript:
 
 ${cleanContent}`;
+
+      // Get OpenAI client with lazy initialization
+      const openai = getOpenAIClient();
 
       // Call OpenAI API
       console.log(`  Calling ${model} for summarization...`);

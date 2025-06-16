@@ -1,5 +1,17 @@
 import type { DatabaseClient } from "../db/client.js";
-import type { ParserConfig, Parser } from "../types.js";
+import type {
+  ParserConfig,
+  Parser,
+  ProcessingStep,
+  PredictedJob,
+} from "../types.js";
+import {
+  calculateTranscriptionCost,
+  estimateSummarizationCost,
+  formatCost,
+} from "../utils/cost-calculator.js";
+import { existsSync, readFileSync, statSync } from "node:fs";
+import { basename } from "node:path";
 
 export class ParserConfigManager {
   private db: DatabaseClient;
@@ -340,5 +352,301 @@ export class ParserConfigManager {
 
     // Fall back to simple extension
     return "." + parts[parts.length - 1].toLowerCase();
+  }
+
+  // === NEW: Job Chain Prediction Methods ===
+
+  /**
+   * Predict the complete processing chain for a file
+   */
+  predictProcessingChain(
+    filePath: string,
+    fileTags: string[],
+    availableParsers: Map<string, Parser>
+  ): ProcessingStep[] {
+    const isDerivative = this.isDerivativeFile(filePath);
+    const chain: ProcessingStep[] = [];
+    const completedParsers = new Set<string>();
+    let currentPath = filePath;
+
+    // Iteratively find parsers that can run until no more are available
+    let foundNewParsers = true;
+    while (foundNewParsers) {
+      foundNewParsers = false;
+
+      // Get ready configs for current path
+      const readyConfigs = this.getReadyConfigsWithParsers(
+        currentPath,
+        fileTags,
+        completedParsers,
+        availableParsers,
+        isDerivative || completedParsers.size > 0 // Treat as derivative after first step
+      );
+
+      for (const { config, parser } of readyConfigs) {
+        if (!completedParsers.has(parser.name)) {
+          const outputPath = currentPath + config.outputExt;
+          const estimatedCost = this.estimateProcessingCost(
+            currentPath,
+            parser.name
+          );
+
+          chain.push({
+            parser: parser.name,
+            inputPath: currentPath,
+            outputPath,
+            estimatedCost,
+            dependsOn: config.dependsOn,
+          });
+
+          completedParsers.add(parser.name);
+          currentPath = outputPath; // Next parsers will use this output as input
+          foundNewParsers = true;
+        }
+      }
+    }
+
+    return chain;
+  }
+
+  /**
+   * Estimate the cost for a processing step
+   */
+  private estimateProcessingCost(filePath: string, parserName: string): number {
+    try {
+      if (!existsSync(filePath)) {
+        return 0;
+      }
+
+      switch (parserName) {
+        case "transcribe":
+        case "convert-video": // Video conversion uses transcription pricing
+          const costResult = calculateTranscriptionCost(filePath);
+          return costResult.estimatedCost;
+
+        case "summarize":
+          // For summarization, we need to read the file content
+          const content = readFileSync(filePath, "utf-8");
+          const sumResult = estimateSummarizationCost(content);
+          return sumResult.estimatedCost;
+
+        default:
+          return 0; // Unknown parser, no cost estimation
+      }
+    } catch (error) {
+      console.warn(
+        `Failed to estimate cost for ${parserName} on ${filePath}:`,
+        error
+      );
+      return 0;
+    }
+  }
+
+  /**
+   * Get all files with their predicted processing chains
+   * Only includes files that have remaining processing steps
+   */
+  async getAllPredictedJobs(
+    availableParsers: Map<string, Parser>
+  ): Promise<PredictedJob[]> {
+    const allFiles = this.db.getAllFiles();
+    const predictedJobs: PredictedJob[] = [];
+
+    for (const file of allFiles) {
+      // Get file tags
+      const fileTags = this.db.getFileTags(file.id).map((tag) => tag.tag);
+
+      // Get completed parses for this file
+      const existingParses = this.db.getFileParses(file.id);
+      const completedParsers = new Set<string>();
+
+      // Track which parsers have been completed for this file
+      for (const parse of existingParses) {
+        if (parse.status === "done") {
+          completedParsers.add(parse.parser);
+        }
+      }
+
+      // Generate prediction chain considering what's already completed
+      const predictedChain = this.predictProcessingChainWithCompleted(
+        file.path,
+        fileTags,
+        availableParsers,
+        completedParsers
+      );
+
+      // Only create predicted job if there are remaining steps
+      if (predictedChain.length > 0) {
+        // Calculate estimated costs for remaining steps only
+        const estimatedCosts: Record<string, number> = {};
+        const dependencies: string[] = [];
+
+        for (const step of predictedChain) {
+          estimatedCosts[step.parser] = step.estimatedCost;
+          dependencies.push(...step.dependsOn);
+        }
+
+        // Remove duplicates from dependencies
+        const uniqueDependencies = [...new Set(dependencies)];
+
+        const predicted = this.db.upsertPredictedJob(
+          file.id,
+          predictedChain,
+          estimatedCosts,
+          uniqueDependencies
+        );
+
+        predictedJobs.push(predicted);
+      } else {
+        // No remaining steps - invalidate any existing predicted job
+        this.db.invalidatePredictedJob(file.id);
+      }
+    }
+
+    return predictedJobs;
+  }
+
+  /**
+   * Predict processing chain considering already completed parsers
+   */
+  private predictProcessingChainWithCompleted(
+    filePath: string,
+    fileTags: string[],
+    availableParsers: Map<string, Parser>,
+    alreadyCompleted: Set<string>
+  ): ProcessingStep[] {
+    const isDerivative = this.isDerivativeFile(filePath);
+    const chain: ProcessingStep[] = [];
+    const completedParsers = new Set<string>(alreadyCompleted); // Start with already completed parsers
+    let currentPath = filePath;
+
+    // Iteratively find parsers that can run until no more are available
+    let foundNewParsers = true;
+    while (foundNewParsers) {
+      foundNewParsers = false;
+
+      // Get ready configs for current path
+      const readyConfigs = this.getReadyConfigsWithParsers(
+        currentPath,
+        fileTags,
+        completedParsers,
+        availableParsers,
+        isDerivative || completedParsers.size > alreadyCompleted.size // Treat as derivative after first new step
+      );
+
+      for (const { config, parser } of readyConfigs) {
+        // Only add to chain if this parser hasn't been completed yet
+        if (
+          !alreadyCompleted.has(parser.name) &&
+          !completedParsers.has(parser.name)
+        ) {
+          const outputPath = currentPath + config.outputExt;
+          const estimatedCost = this.estimateProcessingCost(
+            currentPath,
+            parser.name
+          );
+
+          chain.push({
+            parser: parser.name,
+            inputPath: currentPath,
+            outputPath,
+            estimatedCost,
+            dependsOn: config.dependsOn,
+          });
+
+          completedParsers.add(parser.name);
+          currentPath = outputPath; // Next parsers will use this output as input
+          foundNewParsers = true;
+        }
+      }
+    }
+
+    return chain;
+  }
+
+  /**
+   * Create or update predicted job for a file (considering completed parses)
+   */
+  async updatePredictedJob(
+    fileId: number,
+    filePath: string,
+    fileTags: string[],
+    availableParsers: Map<string, Parser>
+  ): Promise<PredictedJob> {
+    // Get completed parses for this file
+    const existingParses = this.db.getFileParses(fileId);
+    const completedParsers = new Set<string>();
+
+    // Track which parsers have been completed for this file
+    for (const parse of existingParses) {
+      if (parse.status === "done") {
+        completedParsers.add(parse.parser);
+      }
+    }
+
+    // Generate prediction chain considering what's already completed
+    const predictedChain = this.predictProcessingChainWithCompleted(
+      filePath,
+      fileTags,
+      availableParsers,
+      completedParsers
+    );
+
+    // Calculate estimated costs for remaining steps only
+    const estimatedCosts: Record<string, number> = {};
+    const dependencies: string[] = [];
+
+    for (const step of predictedChain) {
+      estimatedCosts[step.parser] = step.estimatedCost;
+      dependencies.push(...step.dependsOn);
+    }
+
+    // Remove duplicates from dependencies
+    const uniqueDependencies = [...new Set(dependencies)];
+
+    return this.db.upsertPredictedJob(
+      fileId,
+      predictedChain,
+      estimatedCosts,
+      uniqueDependencies
+    );
+  }
+
+  /**
+   * Calculate total estimated cost for a batch of user selections
+   */
+  calculateBatchCost(
+    userSelections: Array<{ fileId: number; selectedSteps: string[] }>
+  ): number {
+    let totalCost = 0;
+
+    for (const selection of userSelections) {
+      const predicted = this.db.getPredictedJob(selection.fileId);
+      if (predicted) {
+        for (const stepName of selection.selectedSteps) {
+          totalCost += predicted.estimatedCosts[stepName] || 0;
+        }
+      }
+    }
+
+    return totalCost;
+  }
+
+  /**
+   * Check if a file is a derivative (output of another parser)
+   */
+  private isDerivativeFile(filePath: string): boolean {
+    const filename = basename(filePath);
+    const derivativeMarkers = [
+      ".transcript.",
+      ".summary.",
+      ".processed.",
+      ".converted.",
+      ".chunked.",
+      ".chunked_",
+      ".chunks.",
+      ".combined.",
+    ];
+    return derivativeMarkers.some((marker) => filename.includes(marker));
   }
 }

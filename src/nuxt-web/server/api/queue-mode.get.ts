@@ -1,0 +1,25 @@
+import { DatabaseClient } from "../../../db/client.js";
+
+export default defineEventHandler(async (_event) => {
+  const _config = useRuntimeConfig();
+
+  try {
+    const db = new DatabaseClient("../../data.db");
+
+    // Get queue mode setting (default to "auto" if not set)
+    const queueMode = db.getSetting("queue_mode") || "auto";
+
+    db.close();
+
+    return {
+      queueMode,
+      timestamp: Date.now(),
+    };
+  } catch (error) {
+    console.error("Failed to get queue mode:", error);
+    throw createError({
+      statusCode: 500,
+      statusMessage: "Failed to get queue mode",
+    });
+  }
+});

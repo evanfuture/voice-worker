@@ -10,6 +10,10 @@ import type {
   FileMetadata,
   FileRecordWithMetadata,
   ParserExecution,
+  SystemSetting,
+  ApprovalBatch,
+  PredictedJob,
+  ProcessingStep,
 } from "../types.js";
 
 export class DatabaseClient {
@@ -100,6 +104,38 @@ export class DatabaseClient {
         FOREIGN KEY (parser_config_id) REFERENCES parser_configs (id) ON DELETE CASCADE
       );
 
+      -- NEW: System settings table for queue mode and global configuration
+      CREATE TABLE IF NOT EXISTS system_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+
+      -- NEW: Approval batches table for tracking user approval sessions
+      CREATE TABLE IF NOT EXISTS approval_batches (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'completed', 'failed')),
+        user_selections TEXT NOT NULL DEFAULT '{}', -- JSON object of user selections
+        total_estimated_cost REAL DEFAULT 0.0,
+        actual_cost REAL DEFAULT 0.0,
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+      );
+
+      -- NEW: Predicted jobs table for storing job chain predictions
+      CREATE TABLE IF NOT EXISTS predicted_jobs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER NOT NULL,
+        predicted_chain TEXT NOT NULL, -- JSON array of predicted processing steps
+        estimated_costs TEXT NOT NULL DEFAULT '{}', -- JSON object of cost estimates
+        dependencies TEXT NOT NULL DEFAULT '[]', -- JSON array of dependencies
+        is_valid INTEGER NOT NULL DEFAULT 1, -- whether the prediction is still valid
+        created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+        FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
+      );
+
       -- Existing indexes
       CREATE INDEX IF NOT EXISTS idx_files_path ON files (path);
       CREATE INDEX IF NOT EXISTS idx_parses_status ON parses (status);
@@ -113,6 +149,9 @@ export class DatabaseClient {
       CREATE INDEX IF NOT EXISTS idx_file_metadata_file_id ON file_metadata (file_id);
       CREATE INDEX IF NOT EXISTS idx_file_metadata_key ON file_metadata (key);
       CREATE INDEX IF NOT EXISTS idx_parser_executions_status ON parser_executions (status);
+      CREATE INDEX IF NOT EXISTS idx_approval_batches_status ON approval_batches (status);
+      CREATE INDEX IF NOT EXISTS idx_predicted_jobs_file_id ON predicted_jobs (file_id);
+      CREATE INDEX IF NOT EXISTS idx_predicted_jobs_valid ON predicted_jobs (is_valid);
     `);
   }
 
@@ -132,6 +171,24 @@ export class DatabaseClient {
       this.db.exec(`
         ALTER TABLE parser_configs
         ADD COLUMN allow_derived_files INTEGER NOT NULL DEFAULT 0
+      `);
+      console.log("✅ Migration completed successfully");
+    }
+
+    // Check if we need to add approval_batch_id column to parses table
+    try {
+      const stmt = this.db.prepare(
+        "SELECT approval_batch_id FROM parses LIMIT 1"
+      );
+      stmt.get();
+    } catch (error) {
+      // Column doesn't exist, add it
+      console.log(
+        "🔄 Running database migration: adding approval_batch_id column to parses table..."
+      );
+      this.db.exec(`
+        ALTER TABLE parses
+        ADD COLUMN approval_batch_id INTEGER REFERENCES approval_batches(id)
       `);
       console.log("✅ Migration completed successfully");
     }
@@ -195,20 +252,30 @@ export class DatabaseClient {
     parser: string,
     status: ParseRecord["status"],
     outputPath?: string,
-    error?: string
+    error?: string,
+    approvalBatchId?: number
   ): void {
     const now = Math.floor(Date.now() / 1000);
     const stmt = this.db.prepare(`
-      INSERT INTO parses (file_id, parser, status, output_path, updated_at, error)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO parses (file_id, parser, status, output_path, updated_at, error, approval_batch_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
       ON CONFLICT (file_id, parser) DO UPDATE SET
         status = excluded.status,
         output_path = excluded.output_path,
         updated_at = excluded.updated_at,
-        error = excluded.error
+        error = excluded.error,
+        approval_batch_id = excluded.approval_batch_id
     `);
 
-    stmt.run(fileId, parser, status, outputPath || null, now, error || null);
+    stmt.run(
+      fileId,
+      parser,
+      status,
+      outputPath || null,
+      now,
+      error || null,
+      approvalBatchId || null
+    );
   }
 
   getParse(fileId: number, parser: string): ParseRecord | null {
@@ -225,6 +292,7 @@ export class DatabaseClient {
       outputPath: result.output_path,
       updatedAt: result.updated_at,
       error: result.error,
+      approvalBatchId: result.approval_batch_id,
     };
   }
 
@@ -240,6 +308,7 @@ export class DatabaseClient {
       outputPath: result.output_path,
       updatedAt: result.updated_at,
       error: result.error,
+      approvalBatchId: result.approval_batch_id,
     }));
   }
 
@@ -253,6 +322,7 @@ export class DatabaseClient {
       outputPath: result.output_path,
       updatedAt: result.updated_at,
       error: result.error,
+      approvalBatchId: result.approval_batch_id,
     }));
   }
 
@@ -271,6 +341,7 @@ export class DatabaseClient {
       outputPath: result.output_path,
       updatedAt: result.updated_at,
       error: result.error,
+      approvalBatchId: result.approval_batch_id,
     }));
   }
 
@@ -636,6 +707,194 @@ export class DatabaseClient {
       createdAt: result.created_at,
       updatedAt: result.updated_at,
     };
+  }
+
+  // === NEW: System Settings Methods ===
+
+  setSetting(key: string, value: string): void {
+    const now = Math.floor(Date.now() / 1000);
+    const stmt = this.db.prepare(`
+      INSERT INTO system_settings (key, value, updated_at)
+      VALUES (?, ?, ?)
+      ON CONFLICT (key) DO UPDATE SET
+        value = excluded.value,
+        updated_at = excluded.updated_at
+    `);
+    stmt.run(key, value, now);
+  }
+
+  getSetting(key: string): string | null {
+    const stmt = this.db.prepare(
+      "SELECT value FROM system_settings WHERE key = ?"
+    );
+    const result = stmt.get(key) as any;
+    return result?.value || null;
+  }
+
+  // === NEW: Approval Batch Methods ===
+
+  createApprovalBatch(
+    name: string,
+    userSelections: Record<string, any>,
+    totalEstimatedCost: number = 0
+  ): ApprovalBatch {
+    const now = Math.floor(Date.now() / 1000);
+    const stmt = this.db.prepare(`
+      INSERT INTO approval_batches (name, status, user_selections, total_estimated_cost, created_at, updated_at)
+      VALUES (?, 'pending', ?, ?, ?, ?)
+      RETURNING *
+    `);
+
+    const result = stmt.get(
+      name,
+      JSON.stringify(userSelections),
+      totalEstimatedCost,
+      now,
+      now
+    ) as any;
+    return {
+      id: result.id,
+      name: result.name,
+      status: result.status,
+      userSelections: JSON.parse(result.user_selections),
+      totalEstimatedCost: result.total_estimated_cost,
+      actualCost: result.actual_cost,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
+  }
+
+  updateApprovalBatch(
+    id: number,
+    status: ApprovalBatch["status"],
+    actualCost?: number
+  ): void {
+    const now = Math.floor(Date.now() / 1000);
+    const stmt = this.db.prepare(`
+      UPDATE approval_batches
+      SET status = ?, actual_cost = COALESCE(?, actual_cost), updated_at = ?
+      WHERE id = ?
+    `);
+    stmt.run(status, actualCost, now, id);
+  }
+
+  getApprovalBatch(id: number): ApprovalBatch | null {
+    const stmt = this.db.prepare("SELECT * FROM approval_batches WHERE id = ?");
+    const result = stmt.get(id) as any;
+    if (!result) return null;
+
+    return {
+      id: result.id,
+      name: result.name,
+      status: result.status,
+      userSelections: JSON.parse(result.user_selections),
+      totalEstimatedCost: result.total_estimated_cost,
+      actualCost: result.actual_cost,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
+  }
+
+  getAllApprovalBatches(): ApprovalBatch[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM approval_batches ORDER BY created_at DESC"
+    );
+    const results = stmt.all() as any[];
+    return results.map((result) => ({
+      id: result.id,
+      name: result.name,
+      status: result.status,
+      userSelections: JSON.parse(result.user_selections),
+      totalEstimatedCost: result.total_estimated_cost,
+      actualCost: result.actual_cost,
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    }));
+  }
+
+  // === NEW: Predicted Jobs Methods ===
+
+  upsertPredictedJob(
+    fileId: number,
+    predictedChain: ProcessingStep[],
+    estimatedCosts: Record<string, number>,
+    dependencies: string[] = []
+  ): PredictedJob {
+    const now = Math.floor(Date.now() / 1000);
+    const stmt = this.db.prepare(`
+      INSERT INTO predicted_jobs (file_id, predicted_chain, estimated_costs, dependencies, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT (file_id) DO UPDATE SET
+        predicted_chain = excluded.predicted_chain,
+        estimated_costs = excluded.estimated_costs,
+        dependencies = excluded.dependencies,
+        is_valid = 1,
+        updated_at = excluded.updated_at
+      RETURNING *
+    `);
+
+    const result = stmt.get(
+      fileId,
+      JSON.stringify(predictedChain),
+      JSON.stringify(estimatedCosts),
+      JSON.stringify(dependencies),
+      now,
+      now
+    ) as any;
+
+    return {
+      id: result.id,
+      fileId: result.file_id,
+      predictedChain: JSON.parse(result.predicted_chain),
+      estimatedCosts: JSON.parse(result.estimated_costs),
+      dependencies: JSON.parse(result.dependencies),
+      isValid: Boolean(result.is_valid),
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
+  }
+
+  getPredictedJob(fileId: number): PredictedJob | null {
+    const stmt = this.db.prepare(
+      "SELECT * FROM predicted_jobs WHERE file_id = ? AND is_valid = 1"
+    );
+    const result = stmt.get(fileId) as any;
+    if (!result) return null;
+
+    return {
+      id: result.id,
+      fileId: result.file_id,
+      predictedChain: JSON.parse(result.predicted_chain),
+      estimatedCosts: JSON.parse(result.estimated_costs),
+      dependencies: JSON.parse(result.dependencies),
+      isValid: Boolean(result.is_valid),
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    };
+  }
+
+  getAllPredictedJobs(): PredictedJob[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM predicted_jobs WHERE is_valid = 1 ORDER BY created_at DESC"
+    );
+    const results = stmt.all() as any[];
+    return results.map((result) => ({
+      id: result.id,
+      fileId: result.file_id,
+      predictedChain: JSON.parse(result.predicted_chain),
+      estimatedCosts: JSON.parse(result.estimated_costs),
+      dependencies: JSON.parse(result.dependencies),
+      isValid: Boolean(result.is_valid),
+      createdAt: result.created_at,
+      updatedAt: result.updated_at,
+    }));
+  }
+
+  invalidatePredictedJob(fileId: number): void {
+    const stmt = this.db.prepare(
+      "UPDATE predicted_jobs SET is_valid = 0 WHERE file_id = ?"
+    );
+    stmt.run(fileId);
   }
 
   close(): void {

@@ -1,0 +1,58 @@
+name: Design Tokens Sync
+
+on:
+  push:
+    paths:
+      - "src/design-system/tokens.json"
+      - "src/design-system/style-dictionary.config.js"
+    branches: [main]
+  pull_request:
+    paths:
+      - "src/design-system/tokens.json"
+      - "src/design-system/style-dictionary.config.js"
+
+jobs:
+  build-tokens:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "18"
+          cache: "npm"
+          cache-dependency-path: "src/design-system/package.json"
+
+      - name: Install dependencies
+        run: |
+          cd src/design-system
+          npm install
+
+      - name: Build design tokens
+        run: |
+          cd src/design-system
+          npm run build
+
+      - name: Run design system tests
+        run: |
+          cd src/design-system
+          npm run test:smoke
+
+      - name: Commit generated files
+        if: github.event_name == 'push'
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add src/design-system/dist/
+          git diff --staged --quiet || git commit -m "Update generated design tokens [skip ci]"
+          git push
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload Figma tokens artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: figma-tokens
+          path: src/design-system/dist/figma-tokens.json

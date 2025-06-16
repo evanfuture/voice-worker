@@ -14,10 +14,21 @@ import type { Parser } from "../types.js";
 import OpenAI from "openai";
 import { toFile } from "openai/uploads";
 
-// Initialize OpenAI client with API key from environment
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+// Lazy initialization of OpenAI client to avoid import-time API key requirement
+let openaiClient: OpenAI | null = null;
+
+function getOpenAIClient(): OpenAI {
+  if (!openaiClient) {
+    const apiKey = process.env.OPENAI_API_KEY;
+    if (!apiKey) {
+      throw new Error(
+        "OPENAI_API_KEY environment variable is required for transcription"
+      );
+    }
+    openaiClient = new OpenAI({ apiKey });
+  }
+  return openaiClient;
+}
 
 // Real transcription function using OpenAI Whisper API
 async function transcribeAudio(audioPath: string): Promise<string> {
@@ -25,6 +36,9 @@ async function transcribeAudio(audioPath: string): Promise<string> {
   console.log(`  Transcribing: ${audioName}`);
 
   try {
+    // Get OpenAI client with lazy initialization
+    const openai = getOpenAIClient();
+
     // Read the audio file
     const audioBuffer = readFileSync(audioPath);
 

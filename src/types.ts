@@ -14,6 +14,7 @@ export interface ParseRecord {
   outputPath: string | null;
   updatedAt: number;
   error?: string;
+  approvalBatchId?: number; // Link to approval batch if job was approved
 }
 
 export interface Parser {
@@ -99,4 +100,52 @@ export interface ParserExecution {
   error?: string;
   createdAt: number;
   updatedAt: number;
+}
+
+// NEW: System setting for queue mode and other global configuration
+export interface SystemSetting {
+  key: string;
+  value: string;
+  updatedAt: number;
+}
+
+// NEW: Approval batch for user-controlled processing
+export interface ApprovalBatch {
+  id: number;
+  name: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  userSelections: Record<string, any>; // JSON object of user selections
+  totalEstimatedCost: number;
+  actualCost: number;
+  createdAt: number;
+  updatedAt: number;
+}
+
+// NEW: Predicted job chain for a file
+export interface PredictedJob {
+  id: number;
+  fileId: number;
+  predictedChain: ProcessingStep[]; // Array of predicted processing steps
+  estimatedCosts: Record<string, number>; // Cost estimates for each step
+  dependencies: string[]; // Array of parser dependencies
+  isValid: boolean; // Whether the prediction is still valid
+  createdAt: number;
+  updatedAt: number;
+}
+
+// NEW: Individual processing step in a predicted chain
+export interface ProcessingStep {
+  parser: string;
+  inputPath: string;
+  outputPath: string;
+  estimatedCost: number;
+  dependsOn: string[];
+}
+
+// NEW: User selection for batch approval
+export interface UserSelection {
+  fileId: number;
+  filePath: string;
+  selectedSteps: string[]; // Array of parser names user wants to run
+  totalCost: number;
 }
