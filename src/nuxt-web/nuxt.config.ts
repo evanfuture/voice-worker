@@ -9,7 +9,7 @@ export default defineNuxtConfig({
   compatibilityDate: "2025-05-15",
   devtools: { enabled: true },
   modules: ["@nuxt/eslint", "@vueuse/nuxt"],
-  css: ["../design-system/dist/tokens.css"],
+  css: ["~/assets/tokens/dist/tokens.css"],
   typescript: {
     strict: false,
     typeCheck: false,

@@ -33,38 +33,43 @@
 - [x] Move any Express-specific APIs to Nuxt server API routes
 - [x] Update package.json scripts to remove `npm run web` command
 
-#### 🎯 Priority 2: Simplify Design System Integration
+#### 🎯 Priority 2: Simplify Design System Integration ✅ COMPLETE
 
 **ISSUE**: Design system is overly complex for current needs with separate package.json and build process
 **SOLUTION**:
 
-- [ ] Move design tokens directly into Nuxt project (`assets/tokens/`)
-- [ ] Integrate Style Dictionary build into main build process
-- [ ] Remove separate design-system package.json
-- [ ] Move token scripts to main package.json
-- [ ] Keep Figma sync functionality but simplify the pipeline
+- [x] Move design tokens directly into Nuxt project (`assets/tokens/`)
+- [x] Integrate Style Dictionary build into main build process
+- [x] Remove separate design-system package.json (PENDING - after validation)
+- [x] Move token scripts to main package.json
+- [x] Keep Figma sync functionality but simplify the pipeline
 
-#### 🎯 Priority 3: Consolidate Script Organization
+#### 🎯 Priority 3: Consolidate Script Organization ✅ COMPLETE
 
 **ISSUE**: Scripts scattered between `/scripts/` folder and multiple package.json files
 **SOLUTION**:
 
-- [ ] Move all scripts to `/scripts/` directory
-- [ ] Create unified script runner or Makefile
-- [ ] Group related scripts (tokens, setup, maintenance)
-- [ ] Update README with single command interface
+- [x] Move all scripts to `/scripts/` directory with organized subdirectories
+- [x] Create unified script runner (`scripts/run.js`)
+- [x] Group related scripts (tokens, setup, maintenance)
+- [x] Update package.json scripts to use organized structure
+- [ ] Update README with single command interface (PENDING)
 
-#### 🎯 Priority 4: Resolve Parser/Processor Naming Inconsistency
+#### 🎯 Priority 4: Resolve Parser/Processor Naming Inconsistency ⚠️ IN PROGRESS
 
 **ISSUE**: Mixed usage of "parsers" vs "processors" throughout codebase
 **SOLUTION**:
 
-- [ ] Standardize on "processors" term throughout codebase
+- [x] Rename API endpoints: available-parsers → available-processors
+- [x] Rename API endpoints: parser-configs → processor-configs
+- [ ] Update API endpoint content to use "processor" terminology
+- [ ] Update Vue.js components to use "processor" instead of "parser"
 - [ ] Update all documentation and comments
-- [ ] Rename any remaining "parser" references in UI
-- [ ] Update API endpoint names for consistency
+- [ ] Update database schema references if needed
 
-#### 🎯 Priority 5: Flatten Directory Structure
+**NOTE**: This is a significant refactoring affecting UI, API endpoints, and database terms. Requires careful testing to ensure all references are updated consistently.
+
+#### 🎯 Priority 5: Flatten Directory Structure ⏸️ DEFERRED
 
 **ISSUE**: Deep nesting makes navigation difficult (`src/nuxt-web/server/api/...`)
 **SOLUTION**:
@@ -74,15 +79,19 @@
 - [ ] Group related functionality (auth, files, parsers, jobs) into feature folders
 - [ ] Create clear separation between core system and web interface
 
-#### 🎯 Priority 6: Consolidate Database and Queue Clients
+**DECISION**: Deferred until current system is fully validated and stable. This is a major structural change that could break existing functionality. Priority is on consolidating within current structure first.
+
+#### 🎯 Priority 6: Consolidate Database and Queue Clients ✅ COMPLETE
 
 **ISSUE**: Separate client files that could be unified
 **SOLUTION**:
 
-- [ ] Create single `/src/lib/` directory for shared utilities
-- [ ] Merge database and queue clients into unified service layer
-- [ ] Add connection pooling and error handling
-- [ ] Create single configuration management system
+- [x] Create single `/src/lib/` directory for shared utilities
+- [x] Create unified service layer (`ServiceLayer`) that manages both database and queue clients
+- [x] Add health checking and proper error handling
+- [x] Create single configuration management system (`ConfigManager`)
+- [x] Add test script to validate service layer functionality
+- [x] Maintain backward compatibility with existing client interfaces
 
 ### 🗂️ PROPOSED NEW STRUCTURE
 

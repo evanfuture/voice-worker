@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "nuxt build",
+    "build": "npm run build:tokens && nuxt build",
+    "build:tokens": "cd assets/tokens && style-dictionary build --config style-dictionary.config.cjs",
+    "tokens:watch": "cd assets/tokens && style-dictionary build --config style-dictionary.config.cjs --watch",
     "dev": "nuxt dev",
     "generate": "nuxt generate",
     "preview": "nuxt preview",
@@ -12,8 +14,8 @@
   },
   "dependencies": {
     "@nuxt/eslint": "^1.4.1",
-    "@vueuse/core": "^13.6.1",
-    "@vueuse/nuxt": "^13.6.1",
+    "@vueuse/core": "^13.3.0",
+    "@vueuse/nuxt": "^13.3.0",
     "cors": "^2.8.5",
     "eslint": "^9.28.0",
     "ioredis": "^5.4.2",
@@ -24,7 +26,9 @@
   },
   "devDependencies": {
     "@types/ws": "^8.5.13",
+    "style-dictionary": "^3.8.0",
+    "glob": "^10.3.0",
     "typescript": "^5.7.3",
-    "vue-tsc": "^2.3.2"
+    "vue-tsc": "^2.2.10"
   }
 }

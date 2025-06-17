@@ -9,10 +9,13 @@
     "dev": "tsx src/index.ts",
     "start": "node dist/index.js",
     "cli": "tsx src/cli/index.ts",
-    "tokens:export": "node scripts/export-tokens.js",
-    "tokens:import": "node scripts/import-tokens.js",
+    "scripts:run": "node scripts/run.js",
+    "tokens:export": "node scripts/run.js tokens export-tokens",
+    "tokens:import": "node scripts/run.js tokens import-tokens",
+    "tokens:extract": "node scripts/run.js tokens extract-tokens",
     "tokens:sync": "npm run build && npm run tokens:import",
-    "tokens:setup": "node scripts/setup-penpot.js"
+    "setup:penpot": "node scripts/run.js setup setup-penpot",
+    "test:services": "node scripts/run.js maintenance test-service-layer"
   },
   "keywords": [
     "file-monitoring",

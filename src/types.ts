@@ -44,6 +44,15 @@ export interface SystemConfig {
   redisPort: number;
 }
 
+// NEW: Service layer configuration
+export interface ServiceConfig {
+  dbPath: string;
+  redis: {
+    host: string;
+    port: number;
+  };
+}
+
 // NEW: Dynamic parser configuration for database storage
 export interface ParserConfig {
   id: number;
