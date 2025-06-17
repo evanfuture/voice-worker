@@ -1,7 +1,7 @@
 import { DatabaseClient } from "../../../../../db/client.js";
 
 export default defineEventHandler(async (event) => {
-  const _config = useRuntimeConfig();
+  const config = useRuntimeConfig();
   const batchId = getRouterParam(event, "id");
 
   if (!batchId) {
@@ -12,7 +12,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const db = new DatabaseClient("../../../../../data.db");
+    const db = new DatabaseClient(config.dbPath);
 
     const approvalBatch = db.getApprovalBatch(parseInt(batchId));
 

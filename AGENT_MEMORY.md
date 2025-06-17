@@ -470,6 +470,32 @@ The system uses a hybrid approach bridging hardcoded implementations with databa
 
 4. **Queue Mode Management**: Database-driven mode switching between automatic and approval-based processing
 
+5. **Agentic System Foundation**: Externalized prompts system with file monitoring and agent-friendly editing APIs
+
+### **NEW: Agentic System - Phase 1 Complete ✅**
+
+**Prompt File Management System:**
+
+- **PromptWatcher**: Monitors `prompts/` directory with chokidar for real-time file change detection
+- **Parser Configuration Integration**: Detects which parsers reference changed prompts and logs impact
+- **System Integration**: Fully integrated into main startup/shutdown process alongside FileWatcher
+
+**Agent-Friendly APIs:**
+
+- **GET /api/prompts**: Lists all prompt files with metadata (size, lines, last modified, preview)
+- **GET /api/prompts/{filename}**: Returns prompt content with line numbers for precise editing
+- **POST /api/prompts/{filename}/edit**: Line-based editing (insert/replace/delete operations)
+- **POST /api/prompts/{filename}**: Full file replacement with atomic writes
+- **Security**: Path traversal protection, file type validation, atomic operations
+
+**Architecture Benefits:**
+
+- **Event-Driven**: Prompt changes trigger system notifications and audit logging
+- **Agent-Optimized**: Line-based editing prevents copy/edit/paste errors in tool calls
+- **Audit Trail**: All prompt changes logged with parser configuration impact analysis
+- **Safe Operations**: Atomic edits with validation prevent file corruption
+- **Extensible**: Callback system allows future enhancements (caching, validation, etc.)
+
 ### Configuration Files
 
 - `.env`: OpenAI API key configuration
@@ -488,3 +514,32 @@ The system is fully functional with both automatic and approval-based processing
 5. Manage files and parser configurations through web interface
 
 The 3 movie files mentioned by the user are ready for testing the batch approval workflow.
+
+### Recent Bug Fixes (June 2025)
+
+**Critical Database Path Issue Fixed:**
+
+- **Problem**: Different Nuxt API endpoints were using inconsistent database paths (`"../../data.db"` vs `"../../../../../data.db"`)
+- **Impact**: This caused multiple separate database files to be created, leading to "no such table: parser_configs" errors
+- **Solution**: All endpoints now consistently use `config.dbPath` from Nuxt runtime configuration
+- **Fixed Endpoints**: approval-batches, queue-mode, predicted-jobs, and their nested routes
+- **Configuration**: Database path is set in `nuxt.config.ts` as `process.env.DB_PATH || "../../data.db"`
+
+**TypeScript Loading Issue in ParserLoader Fixed:**
+
+- **Problem**: ParserLoader tried to load `.ts` files directly in Nuxt runtime environment, causing "Unknown file extension .ts" errors
+- **Impact**: Dynamic parser loading failed, falling back to hardcoded imports (Option C)
+- **Solution**: Modified ParserLoader to prioritize `.js` files over `.ts` files in runtime environments
+- **Graceful Handling**: Added specific error handling for TypeScript loading failures with informative warnings
+- **Fallback Mechanism**: System designed with "Option C: Direct parser imports" fallback that works when dynamic loading fails
+
+**Job Failure Handling and Error Visibility System:**
+
+- **Problem**: Job failures in BullMQ queue weren't synchronized to database, leaving users unaware of processing errors
+- **Impact**: Failed transcriptions (e.g., unsupported file formats) appeared to succeed but never completed
+- **Solution**: Added comprehensive failure handling system:
+  - Job failure handler in worker updates database parse records with error messages
+  - New API endpoints (`/api/failed-jobs`, `/api/retry-failed`) for managing failures
+  - Failed jobs section in web interface with prominent error display
+  - **Elegant Retry Mechanism**: Instead of complex re-queuing, simply delete output file and let file watcher auto-reprocess
+- **Design Insight**: Retry by deletion leverages existing deletion recovery system for consistency and simplicity

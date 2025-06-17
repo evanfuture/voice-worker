@@ -11,6 +11,7 @@ import { QueueClient } from "./queue/client.js";
 import { ParserLoader } from "./processors/loader.js";
 import { ParserConfigManager } from "./processors/config-manager.js";
 import { FileWatcher } from "./watcher/client.js";
+import { PromptWatcher } from "./watcher/prompt-watcher.js";
 
 // Get the directory of the current module
 const __filename = fileURLToPath(import.meta.url);
@@ -20,6 +21,7 @@ const projectRoot = dirname(__dirname);
 // Configuration
 const config = {
   watchDir: join(projectRoot, "dropbox"),
+  promptsDir: join(projectRoot, "prompts"),
   dbPath: join(projectRoot, "data.db"),
   redisHost: "127.0.0.1",
   redisPort: 6379,
@@ -117,6 +119,12 @@ async function main() {
     console.log(`📁 Created watch directory: ${config.watchDir}`);
   }
 
+  // Ensure prompts directory exists
+  if (!existsSync(config.promptsDir)) {
+    mkdirSync(config.promptsDir, { recursive: true });
+    console.log(`📝 Created prompts directory: ${config.promptsDir}`);
+  }
+
   // Initialize components
   console.log("🔧 Initializing components...");
 
@@ -196,6 +204,42 @@ async function main() {
     }
   };
 
+  // Set up job failure handler
+  const handleJobFailure = (failure: {
+    jobId: string;
+    parser: string;
+    inputPath: string;
+    error: string;
+  }) => {
+    const { jobId, parser: parserName, inputPath, error } = failure;
+    console.log(
+      `💥 Job failure handler called for ${parserName}: ${inputPath} - ${error}`
+    );
+
+    // Find the file record
+    const fileRecord = db.getFile(inputPath);
+    if (fileRecord) {
+      console.log(
+        `🗃️  Found file record for ${inputPath}: id=${fileRecord.id}`
+      );
+
+      // Mark the parse as failed with error message
+      console.log(
+        `💾 Updating parse record: fileId=${fileRecord.id}, parser=${parserName}, status=failed, error=${error}`
+      );
+      db.upsertParse(fileRecord.id, parserName, "failed", undefined, error);
+
+      // Verify the update worked
+      const updatedParse = db.getParse(fileRecord.id, parserName);
+      console.log(`🔍 Parse record after failure update:`, updatedParse);
+      console.log(`❌ Failed ${parserName}: ${error}`);
+    } else {
+      console.error(
+        `❌ No file record found for ${inputPath} in job failure handler`
+      );
+    }
+  };
+
   // Start queue worker
   console.log("⚡ Starting queue worker...");
   await queue.startWorker(
@@ -203,7 +247,8 @@ async function main() {
     config.redisPort,
     parsers,
     db,
-    handleJobComplete
+    handleJobComplete,
+    handleJobFailure
   );
 
   // Clean up database state to match queue state
@@ -215,10 +260,22 @@ async function main() {
   console.log("👀 Starting file watcher...");
   await watcher.start();
 
+  // Start prompt watcher
+  const promptWatcher = new PromptWatcher(config.promptsDir, db);
+  console.log("📝 Starting prompt watcher...");
+  await promptWatcher.start();
+
+  // Set up prompt change callback to potentially invalidate cached prompts
+  promptWatcher.onPromptChange((filename, content) => {
+    console.log(`📋 Prompt ${filename} changed (${content.length} characters)`);
+    // TODO: Future enhancements could invalidate cached prompts here
+  });
+
   console.log(`
 🎉 Voice Worker System is running!
 
 📂 Drop files in: ${config.watchDir}
+📝 Prompts directory: ${config.promptsDir}
 🗄️  Database: ${config.dbPath}
 🔄 Queue: Redis at ${config.redisHost}:${config.redisPort}
 
@@ -237,6 +294,7 @@ Press Ctrl+C to stop...
   const shutdown = async () => {
     console.log("\n🛑 Shutting down...");
     await watcher.stop();
+    await promptWatcher.stop();
     await queue.close();
     db.close();
     console.log("✅ Shutdown complete");

@@ -3,7 +3,7 @@ import { ParserConfigManager } from "../../../processors/config-manager.js";
 import type { UserSelection } from "../../../types.js";
 
 export default defineEventHandler(async (event) => {
-  const _config = useRuntimeConfig();
+  const config = useRuntimeConfig();
 
   try {
     const body = await readBody(event);
@@ -20,7 +20,7 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const db = new DatabaseClient("../../data.db");
+    const db = new DatabaseClient(config.dbPath);
     const configManager = new ParserConfigManager(db);
 
     // Calculate total estimated cost for the batch

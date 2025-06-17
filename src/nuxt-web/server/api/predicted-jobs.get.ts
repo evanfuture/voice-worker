@@ -8,17 +8,17 @@ import { parser as transcribeParser } from "../../../processors/transcribe.js";
 import { parser as summarizeParser } from "../../../processors/summarize.js";
 
 export default defineEventHandler(async (_event) => {
-  const _config = useRuntimeConfig();
+  const config = useRuntimeConfig();
 
   try {
     console.log("🔍 DEBUG: Starting predicted jobs API call");
     console.log(`🔍 DEBUG: Current working directory: ${process.cwd()}`);
     console.log(`🔍 DEBUG: ParserLoader path: ../processors`);
-    console.log(`🔍 DEBUG: Database path: ../../data.db`);
+    console.log(`🔍 DEBUG: Database path: ${config.dbPath}`);
 
     // Debug database path resolution
     const path = await import("node:path");
-    const dbPath = path.resolve("../../data.db");
+    const dbPath = path.resolve(config.dbPath);
     const processorPath = path.resolve("../processors");
     console.log(`🔍 DEBUG: Resolved database path: ${dbPath}`);
     console.log(`🔍 DEBUG: Resolved processor path: ${processorPath}`);
@@ -30,7 +30,7 @@ export default defineEventHandler(async (_event) => {
       `🔍 DEBUG: Processor directory exists: ${fs.existsSync(processorPath)}`
     );
 
-    const db = new DatabaseClient("../../data.db");
+    const db = new DatabaseClient(config.dbPath);
     const configManager = new ParserConfigManager(db);
 
     // Try both approaches: dynamic loading and direct imports

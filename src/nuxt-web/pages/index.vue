@@ -160,6 +160,56 @@
         </tbody>
       </table>
     </div>
+
+    <!-- Failed Jobs Section -->
+    <div v-if="queueCounts.failed > 0" class="failed-jobs-section">
+      <h3>❌ Failed Jobs ({{ queueCounts.failed }})</h3>
+
+      <div v-if="failedJobsLoading" class="loading">Loading failed jobs...</div>
+
+      <div v-else-if="failedJobs.length === 0" class="no-failures">
+        <p>🎉 No failed jobs found in database records.</p>
+        <p class="note">
+          Failed jobs in the queue may not have been synced to the database yet.
+        </p>
+      </div>
+
+      <div v-else class="failed-jobs-list">
+        <div
+          v-for="failure in failedJobs"
+          :key="`${failure.fileId}-${failure.parser}`"
+          class="failure-item"
+        >
+          <div class="failure-header">
+            <span class="failure-file">{{ failure.fileName }}</span>
+            <span class="failure-parser">{{ failure.parser }}</span>
+            <span class="failure-time">{{
+              formatDate(failure.updatedAt * 1000)
+            }}</span>
+          </div>
+
+          <div class="failure-error">
+            <span class="error-label">Error:</span>
+            <span class="error-text">{{ failure.error }}</span>
+          </div>
+
+          <div class="failure-actions">
+            <button
+              @click="retryFailedJob(failure.fileId, failure.parser)"
+              class="btn btn-primary btn-small"
+            >
+              🔄 Retry
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="failed-jobs-controls">
+        <button @click="loadFailedJobs" class="btn btn-secondary">
+          🔄 Refresh Failed Jobs
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -176,6 +226,8 @@ const queueCounts = ref({
 });
 const jobs = ref([]);
 const loading = ref(true);
+const failedJobs = ref([]);
+const failedJobsLoading = ref(false);
 const costSummary = ref({
   totalCost: 0,
   totalDurationMinutes: 0,
@@ -312,6 +364,31 @@ async function clearCompleted() {
   }
 }
 
+async function loadFailedJobs() {
+  try {
+    failedJobsLoading.value = true;
+    const response = await $fetch("/api/failed-jobs");
+    failedJobs.value = response.failures || [];
+  } catch (error) {
+    console.error("Failed to load failed jobs:", error);
+  } finally {
+    failedJobsLoading.value = false;
+  }
+}
+
+async function retryFailedJob(fileId, parser) {
+  try {
+    await $fetch("/api/retry-failed", {
+      method: "POST",
+      body: { fileId, parser },
+    });
+    // Refresh both regular jobs and failed jobs
+    await Promise.all([loadJobs(), loadFailedJobs(), loadStatus()]);
+  } catch (error) {
+    console.error("Failed to retry failed job:", error);
+  }
+}
+
 // Utility functions
 function getFileName(path) {
   return path.split("/").pop() || path;
@@ -371,7 +448,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: var(--color-brand-primary);
   color: white;
 }
 

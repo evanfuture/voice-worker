@@ -450,7 +450,7 @@ onMounted(() => {
 .cost-amount {
   font-size: 18px;
   font-weight: bold;
-  color: #2563eb;
+  color: var(--color-brand-primary);
 }
 
 .batch-controls {
@@ -668,7 +668,7 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: var(--color-brand-primary);
   color: white;
 }
 

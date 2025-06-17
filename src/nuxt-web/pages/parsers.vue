@@ -533,12 +533,12 @@ onMounted(() => {
 }
 
 .btn-primary {
-  background: #2563eb;
+  background: var(--color-brand-primary);
   color: white;
 }
 
 .btn-primary:hover {
-  background: #1d4ed8;
+  background: #1d4ed8; /* TODO: Add hover token */
 }
 
 .btn-secondary {
@@ -778,8 +778,8 @@ onMounted(() => {
 .form-group input:focus,
 .form-group textarea:focus {
   outline: none;
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+  border-color: var(--color-brand-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1); /* TODO: Add focus ring token */
 }
 
 .checkbox-label {

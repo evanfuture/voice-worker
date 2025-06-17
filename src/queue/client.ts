@@ -90,6 +90,12 @@ export class QueueClient {
       outputPath: string;
       parser: string;
       inputPath: string;
+    }) => void,
+    onJobFailed?: (failure: {
+      jobId: string;
+      parser: string;
+      inputPath: string;
+      error: string;
     }) => void
   ): Promise<void> {
     if (this.worker) {
@@ -135,6 +141,17 @@ export class QueueClient {
 
     this.worker.on("failed", (job: Job<JobData> | undefined, err: Error) => {
       console.error(`Job ${job?.id} failed:`, err);
+
+      // Call the failure handler if provided
+      if (onJobFailed && job) {
+        const { path: filePath, parser: parserName } = job.data;
+        onJobFailed({
+          jobId: job.id!,
+          parser: parserName,
+          inputPath: filePath,
+          error: err.message || String(err),
+        });
+      }
     });
   }
 

@@ -1,8 +1,10 @@
 import { DatabaseClient } from "../../../db/client.js";
 
 export default defineEventHandler(async (_event) => {
+  const config = useRuntimeConfig();
+
   try {
-    const db = new DatabaseClient("../../data.db");
+    const db = new DatabaseClient(config.dbPath);
 
     const allBatches = db.getAllApprovalBatches();
 

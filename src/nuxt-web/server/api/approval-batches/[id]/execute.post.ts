@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
-    const db = new DatabaseClient("../../../../../data.db");
+    const db = new DatabaseClient(config.dbPath);
     const queue = new QueueClient(config.redisHost, parseInt(config.redisPort));
 
     const approvalBatch = db.getApprovalBatch(parseInt(batchId));

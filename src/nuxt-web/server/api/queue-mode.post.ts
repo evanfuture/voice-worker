@@ -1,7 +1,7 @@
 import { DatabaseClient } from "../../../db/client.js";
 
 export default defineEventHandler(async (event) => {
-  const _config = useRuntimeConfig();
+  const config = useRuntimeConfig();
 
   try {
     const body = await readBody(event);
@@ -14,7 +14,7 @@ export default defineEventHandler(async (event) => {
       });
     }
 
-    const db = new DatabaseClient("../../data.db");
+    const db = new DatabaseClient(config.dbPath);
 
     // Set the queue mode setting
     db.setSetting("queue_mode", queueMode);

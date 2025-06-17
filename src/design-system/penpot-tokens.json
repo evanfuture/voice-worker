@@ -1,0 +1,202 @@
+{
+  "color": {
+    "brand": {
+      "primary": {
+        "value": "#2563eb",
+        "type": "color"
+      },
+      "secondary": {
+        "value": "#1f2937",
+        "type": "color"
+      }
+    },
+    "status": {
+      "success": {
+        "value": "#10b981",
+        "type": "color"
+      },
+      "error": {
+        "value": "#ef4444",
+        "type": "color"
+      },
+      "warning": {
+        "value": "#f59e0b",
+        "type": "color"
+      },
+      "info": {
+        "value": "#0066cc",
+        "type": "color"
+      }
+    },
+    "neutral": {
+      "50": {
+        "value": "#f8fafc",
+        "type": "color"
+      },
+      "100": {
+        "value": "#f3f4f6",
+        "type": "color"
+      },
+      "200": {
+        "value": "#e5e7eb",
+        "type": "color"
+      },
+      "300": {
+        "value": "#d1d5db",
+        "type": "color"
+      },
+      "500": {
+        "value": "#6b7280",
+        "type": "color"
+      },
+      "700": {
+        "value": "#374151",
+        "type": "color"
+      },
+      "900": {
+        "value": "#1f2937",
+        "type": "color"
+      }
+    },
+    "background": {
+      "page": {
+        "value": "{color.neutral.50}",
+        "type": "color"
+      },
+      "card": {
+        "value": "#ffffff",
+        "type": "color"
+      },
+      "active": {
+        "value": "#dbeafe",
+        "type": "color"
+      },
+      "hover": {
+        "value": "{color.neutral.100}",
+        "type": "color"
+      }
+    },
+    "text": {
+      "primary": {
+        "value": "{color.neutral.900}",
+        "type": "color"
+      },
+      "secondary": {
+        "value": "{color.neutral.500}",
+        "type": "color"
+      },
+      "muted": {
+        "value": "#888888",
+        "type": "color"
+      }
+    },
+    "tag": {
+      "default": {
+        "background": {
+          "value": "#e7f3ff",
+          "type": "color"
+        },
+        "text": {
+          "value": "#0066cc",
+          "type": "color"
+        }
+      },
+      "value": {
+        "background": {
+          "value": "#f0f8e7",
+          "type": "color"
+        },
+        "text": {
+          "value": "#4a7c59",
+          "type": "color"
+        }
+      }
+    }
+  },
+  "spacing": {
+    "xs": {
+      "value": "4px",
+      "type": "dimension"
+    },
+    "sm": {
+      "value": "8px",
+      "type": "dimension"
+    },
+    "md": {
+      "value": "12px",
+      "type": "dimension"
+    },
+    "lg": {
+      "value": "16px",
+      "type": "dimension"
+    },
+    "xl": {
+      "value": "20px",
+      "type": "dimension"
+    },
+    "2xl": {
+      "value": "24px",
+      "type": "dimension"
+    }
+  },
+  "border-radius": {
+    "sm": {
+      "value": "4px",
+      "type": "dimension"
+    },
+    "md": {
+      "value": "6px",
+      "type": "dimension"
+    },
+    "lg": {
+      "value": "8px",
+      "type": "dimension"
+    },
+    "pill": {
+      "value": "16px",
+      "type": "dimension"
+    }
+  },
+  "font-family": {
+    "base": {
+      "value": "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "type": "fontFamily"
+    }
+  },
+  "font-size": {
+    "xs": {
+      "value": "0.8rem",
+      "type": "dimension"
+    },
+    "sm": {
+      "value": "0.875rem",
+      "type": "dimension"
+    },
+    "base": {
+      "value": "1rem",
+      "type": "dimension"
+    },
+    "lg": {
+      "value": "1.125rem",
+      "type": "dimension"
+    },
+    "xl": {
+      "value": "1.5rem",
+      "type": "dimension"
+    }
+  },
+  "font-weight": {
+    "normal": {
+      "value": "400",
+      "type": "fontWeight"
+    },
+    "medium": {
+      "value": "500",
+      "type": "fontWeight"
+    },
+    "bold": {
+      "value": "700",
+      "type": "fontWeight"
+    }
+  }
+}

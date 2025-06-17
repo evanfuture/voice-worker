@@ -1,5 +1,138 @@
 # Agent Todos
 
+## 🔧 Codebase Consolidation & Refactoring Analysis
+
+### Analysis Tasks
+
+- [x] Examine current directory structure and identify redundant components
+- [x] Analyze package.json dependencies for consolidation opportunities
+- [x] Review code organization patterns and identify areas for improvement
+- [x] Identify unused or deprecated code paths
+- [x] Suggest architectural improvements for better maintainability
+- [x] Create recommendations for module consolidation
+- [x] Propose file/folder restructuring for better organization
+
+### Key Areas to Investigate
+
+- [x] Multiple package.json files and dependency management
+- [x] Separate web interfaces (Express + Nuxt)
+- [x] Design system integration complexity
+- [x] Script organization and automation
+- [x] Database and queue client separation
+- [x] Processor vs parser naming inconsistencies
+
+### 📋 CONSOLIDATION RECOMMENDATIONS
+
+#### 🎯 Priority 1: Eliminate Redundant Web Interfaces
+
+**ISSUE**: Two separate web servers (Express in `web.ts` + Nuxt) with overlapping functionality
+**SOLUTION**:
+
+- [x] Remove standalone Express server (`src/web.ts`, `src/web/`)
+- [x] Consolidate all web functionality into Nuxt application
+- [x] Move any Express-specific APIs to Nuxt server API routes
+- [x] Update package.json scripts to remove `npm run web` command
+
+#### 🎯 Priority 2: Simplify Design System Integration
+
+**ISSUE**: Design system is overly complex for current needs with separate package.json and build process
+**SOLUTION**:
+
+- [ ] Move design tokens directly into Nuxt project (`assets/tokens/`)
+- [ ] Integrate Style Dictionary build into main build process
+- [ ] Remove separate design-system package.json
+- [ ] Move token scripts to main package.json
+- [ ] Keep Figma sync functionality but simplify the pipeline
+
+#### 🎯 Priority 3: Consolidate Script Organization
+
+**ISSUE**: Scripts scattered between `/scripts/` folder and multiple package.json files
+**SOLUTION**:
+
+- [ ] Move all scripts to `/scripts/` directory
+- [ ] Create unified script runner or Makefile
+- [ ] Group related scripts (tokens, setup, maintenance)
+- [ ] Update README with single command interface
+
+#### 🎯 Priority 4: Resolve Parser/Processor Naming Inconsistency
+
+**ISSUE**: Mixed usage of "parsers" vs "processors" throughout codebase
+**SOLUTION**:
+
+- [ ] Standardize on "processors" term throughout codebase
+- [ ] Update all documentation and comments
+- [ ] Rename any remaining "parser" references in UI
+- [ ] Update API endpoint names for consistency
+
+#### 🎯 Priority 5: Flatten Directory Structure
+
+**ISSUE**: Deep nesting makes navigation difficult (`src/nuxt-web/server/api/...`)
+**SOLUTION**:
+
+- [ ] Move Nuxt web interface to `/web/` or `/app/` at root level
+- [ ] Flatten API routes structure
+- [ ] Group related functionality (auth, files, parsers, jobs) into feature folders
+- [ ] Create clear separation between core system and web interface
+
+#### 🎯 Priority 6: Consolidate Database and Queue Clients
+
+**ISSUE**: Separate client files that could be unified
+**SOLUTION**:
+
+- [ ] Create single `/src/lib/` directory for shared utilities
+- [ ] Merge database and queue clients into unified service layer
+- [ ] Add connection pooling and error handling
+- [ ] Create single configuration management system
+
+### 🗂️ PROPOSED NEW STRUCTURE
+
+```
+voice-worker/
+├── package.json (consolidated dependencies)
+├── README.md
+├── AGENT_MEMORY.md
+├── AGENT_TODOS.md
+├── tsconfig.json
+├──
+├── /core/                    # Core system logic
+│   ├── processors/           # File processors (transcribe, summarize, etc.)
+│   ├── watcher/             # File system monitoring
+│   ├── queue/               # Job queue management
+│   ├── database/            # Database operations
+│   └── index.ts             # Main system entry point
+│
+├── /web/                    # Nuxt web interface (moved from src/nuxt-web)
+│   ├── pages/
+│   ├── components/
+│   ├── server/api/
+│   ├── assets/tokens/       # Design tokens (moved from design-system)
+│   └── nuxt.config.ts
+│
+├── /cli/                    # CLI interface
+│   └── index.ts
+│
+├── /lib/                    # Shared utilities and services
+│   ├── clients.ts           # Database + Queue clients
+│   ├── config.ts            # Configuration management
+│   └── types.ts             # Shared types
+│
+├── /scripts/                # All automation scripts
+│   ├── setup/              # Setup and installation
+│   ├── tokens/             # Design token management
+│   └── maintenance/        # Database and queue maintenance
+│
+├── /prompts/                # Prompt templates
+└── /tests/                  # Test files (organized by feature)
+```
+
+### 🎯 BENEFITS OF CONSOLIDATION
+
+- **Reduced Complexity**: Single web interface, unified dependencies
+- **Easier Navigation**: Flatter directory structure with logical grouping
+- **Better Maintainability**: Consolidated scripts and configuration
+- **Improved DX**: Single command to run everything
+- **Clearer Architecture**: Separation between core system and web interface
+
 ## URGENT: Fix Prediction Logic in Nuxt Context ✅ RESOLVED
 
 ### ✅ Root Cause Identified: Environment Variable Loading Issue
@@ -240,116 +373,3 @@ The system now supports full batch approval workflow with cost visibility and us
 - [x] Modify file watcher to check queue mode before auto-processing
 - [x] Add approval mode detection with prediction updates
 - [x] Ensure batch execution creates jobs with approval_batch_id
-
-### **Phase 6: Testing & Validation - Ready for User Testing**
-
-- [ ] Test approval mode switch from web interface
-- [ ] Test file cataloging in approval mode (no auto-processing)
-- [ ] Test predicted job creation for 3 movie files
-- [ ] Test batch creation with user selections
-- [ ] Test batch execution with job creation
-- [ ] Test progress tracking for active batches
-- [ ] Test cost calculations throughout the flow
-- [ ] Test switching back to auto mode
-
-### **Testing Commands**
-
-```bash
-# Check current queue mode
-curl http://localhost:3000/api/queue-mode
-
-# Switch to approval mode
-curl -X POST http://localhost:3000/api/queue-mode -H "Content-Type: application/json" -d '{"queueMode": "approval"}'
-
-# Check predicted jobs (should show the 3 movie files)
-curl http://localhost:3000/api/predicted-jobs
-
-# Access approval interface
-open http://localhost:3000/approval
-```
-
-**System Features Implemented:**
-
-- Database-driven queue mode switching (auto/approval)
-- File cataloging without auto-processing in approval mode
-- Complete job chain prediction (.mov → .mp3 → .transcript.txt → .summary.txt)
-- Accurate cost estimation for processing chains
-- Interactive batch approval interface with selective job execution
-- Real-time progress tracking for approved batches
-- Seamless integration with existing parser configuration system
-
-# Design System & Figma Sync Implementation
-
-## Current Task: Convert existing UI to design system with Figma sync
-
-- [x] Research and evaluate design token generation tools (Style Dictionary, Theo, Figma Tokens)
-- [x] Extract design tokens from existing Vue components (colors, typography, spacing, shadows)
-- [x] Create design token configuration files (JSON/YAML)
-- [x] Set up token generation pipeline (CSS custom properties, SCSS variables, JS tokens)
-- [x] Fix build configuration and path issues
-- [x] Fix token extraction script to properly find tokens in Vue components
-- [x] Integrate design tokens into Nuxt application
-- [x] Refactor existing components to use design tokens
-- [x] Create comprehensive Figma integration guide
-- [x] Create comprehensive test suite with 16 tests (all passing)
-- [x] Add smoke tests for quick validation
-- [x] Integrate tests into GitHub Actions workflow
-- [x] Validate end-to-end functionality and expectations
-- [ ] Implement component documentation system (Storybook or custom docs)
-- [x] Create Figma plugin or integration for token sync
-- [x] Set up automated workflow for design token updates
-- [x] Document the design system usage and contribution guidelines
-
-## ✅ COMPLETED: Design System with Figma Sync
-
-**Status**: Fully functional design system with bidirectional Figma sync
-
-**What's Working**:
-
-- ✅ Design token extraction from existing Vue components
-- ✅ Style Dictionary build pipeline (CSS, SCSS, JS, Figma JSON)
-- ✅ GitHub Actions automation for token building
-- ✅ Nuxt integration with CSS custom properties
-- ✅ Component refactoring using design tokens
-- ✅ Comprehensive Figma integration documentation
-- ✅ Token extraction script finding 70+ colors, 40+ spacing values, and more
-
-**Ready to Use**:
-
-- Import `dist/figma-tokens.json` into Figma Tokens plugin
-- CSS variables automatically available in Nuxt app
-- GitHub Actions will auto-build on token changes
-- All documentation and setup guides complete
-- **Full test coverage with 16 passing tests validating all functionality**
-- Quick smoke tests available with `npm run test:smoke`
-- Comprehensive test suite with `npm test`
-
-**Test Coverage Includes**:
-
-- Source file validation and JSON structure
-- Build process and output file generation
-- CSS, SCSS, JS, and Figma token format validation
-- Vue component integration and token extraction
-- GitHub Actions workflow and Nuxt configuration
-- Token consistency across all output formats
-- End-to-end workflow validation
-
-## Design System Approaches to Consider:
-
-### Option 1: Style Dictionary + Figma Tokens Plugin
-
-- Use Style Dictionary to generate tokens from JSON source
-- Figma Tokens plugin to import/sync tokens
-- GitHub Actions for automated updates
-
-### Option 2: Custom Design Token Extractor
-
-- Build custom tool to extract tokens from Vue/CSS files
-- Generate Figma-compatible JSON format
-- Custom Figma plugin for importing
-
-### Option 3: Storybook + Figma Integration
-
-- Document components in Storybook
-- Use Figma-Storybook sync plugins
-- Design tokens as Storybook add-on

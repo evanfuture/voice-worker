@@ -26,14 +26,23 @@ export class ParserLoader {
       const files = await readdir(this.processorsDir);
       console.log(`🔍 ParserLoader DEBUG: Found ${files.length} files:`, files);
 
-      const parserFiles = files.filter(
-        (file: string) =>
-          (extname(file) === ".ts" || extname(file) === ".js") &&
-          file !== "loader.ts" &&
-          file !== "loader.js"
+      // In runtime environments (like Nuxt/Nitro), prefer .js files over .ts files
+      // since .ts files may not be transpiled on-the-fly
+      const jsFiles = files.filter(
+        (file: string) => extname(file) === ".js" && file !== "loader.js"
+      );
+
+      const tsFiles = files.filter(
+        (file: string) => extname(file) === ".ts" && file !== "loader.ts"
+      );
+
+      // Prioritize .js files, fall back to .ts files if no .js files are found
+      const parserFiles = jsFiles.length > 0 ? jsFiles : tsFiles;
+      console.log(
+        `🔍 ParserLoader DEBUG: Found ${jsFiles.length} JS files and ${tsFiles.length} TS files`
       );
       console.log(
-        `🔍 ParserLoader DEBUG: Filtered to ${parserFiles.length} parser files:`,
+        `🔍 ParserLoader DEBUG: Using ${parserFiles.length} parser files (${jsFiles.length > 0 ? "JS" : "TS"}):`,
         parserFiles
       );
 
@@ -63,15 +72,26 @@ export class ParserLoader {
             );
           }
         } catch (error) {
-          console.error(
-            `🔍 ParserLoader DEBUG: ❌ Failed to load parser from ${file}:`,
-            error
-          );
-          if (error instanceof Error) {
-            console.error(
-              `🔍 ParserLoader DEBUG: Error message: ${error.message}`
+          if (
+            error instanceof Error &&
+            error.message.includes('Unknown file extension ".ts"')
+          ) {
+            console.warn(
+              `🔍 ParserLoader DEBUG: ⚠️ Cannot load TypeScript file ${file} in runtime environment (expected - fallback will be used)`
             );
-            console.error(`🔍 ParserLoader DEBUG: Error stack: ${error.stack}`);
+          } else {
+            console.error(
+              `🔍 ParserLoader DEBUG: ❌ Failed to load parser from ${file}:`,
+              error
+            );
+            if (error instanceof Error) {
+              console.error(
+                `🔍 ParserLoader DEBUG: Error message: ${error.message}`
+              );
+              console.error(
+                `🔍 ParserLoader DEBUG: Error stack: ${error.stack}`
+              );
+            }
           }
         }
       }
