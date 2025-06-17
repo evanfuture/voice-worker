@@ -13,6 +13,7 @@
     "tokens:export": "node scripts/run.js tokens export-tokens",
     "tokens:import": "node scripts/run.js tokens import-tokens",
     "tokens:extract": "node scripts/run.js tokens extract-tokens",
+    "tokens:build": "cd src/nuxt-web/assets/tokens && npx style-dictionary build --config style-dictionary.config.cjs",
     "tokens:sync": "npm run build && npm run tokens:import",
     "setup:penpot": "node scripts/run.js setup setup-penpot",
     "test:services": "node scripts/run.js maintenance test-service-layer"

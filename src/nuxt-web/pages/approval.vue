@@ -110,16 +110,16 @@
                     <label class="step-checkbox">
                       <input
                         type="checkbox"
-                        :checked="isStepSelected(job.fileId, step.parser)"
+                        :checked="isStepSelected(job.fileId, step.processor)"
                         @change="
                           toggleStep(
                             job.fileId,
-                            step.parser,
+                            step.processor,
                             $event.target.checked
                           )
                         "
                       />
-                      <span class="step-name">{{ step.parser }}</span>
+                      <span class="step-name">{{ step.processor }}</span>
                     </label>
                     <div class="step-details">
                       <span class="step-cost"
@@ -194,7 +194,7 @@ const executing = ref(false);
 const queueMode = ref("auto");
 const predictedJobs = ref([]);
 const activeBatches = ref([]);
-const selectedSteps = ref(new Map()); // Map of fileId -> Set of selected parser names
+const selectedSteps = ref(new Map()); // Map of fileId -> Set of selected processor names
 const batchName = ref("");
 
 const selectedJobCount = computed(() => {
@@ -210,7 +210,7 @@ const totalSelectedCost = computed(() => {
   for (const job of predictedJobs.value) {
     const fileSteps = selectedSteps.value.get(job.fileId) || new Set();
     for (const step of job.predictedChain) {
-      if (fileSteps.has(step.parser)) {
+      if (fileSteps.has(step.processor)) {
         total += step.estimatedCost;
       }
     }
@@ -298,20 +298,20 @@ async function switchToAutoMode() {
   }
 }
 
-function isStepSelected(fileId, parserName) {
-  return selectedSteps.value.get(fileId)?.has(parserName) || false;
+function isStepSelected(fileId, processorName) {
+  return selectedSteps.value.get(fileId)?.has(processorName) || false;
 }
 
-function toggleStep(fileId, parserName, checked) {
+function toggleStep(fileId, processorName, checked) {
   if (!selectedSteps.value.has(fileId)) {
     selectedSteps.value.set(fileId, new Set());
   }
 
   const fileSteps = selectedSteps.value.get(fileId);
   if (checked) {
-    fileSteps.add(parserName);
+    fileSteps.add(processorName);
   } else {
-    fileSteps.delete(parserName);
+    fileSteps.delete(processorName);
   }
 }
 
@@ -331,7 +331,7 @@ async function createAndExecuteBatch() {
           filePath: job.filePath,
           selectedSteps: Array.from(fileSteps),
           totalCost: job.predictedChain
-            .filter((step) => fileSteps.has(step.parser))
+            .filter((step) => fileSteps.has(step.processor))
             .reduce((sum, step) => sum + step.estimatedCost, 0),
         });
       }

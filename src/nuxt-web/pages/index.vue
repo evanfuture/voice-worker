@@ -106,7 +106,7 @@
         <thead>
           <tr>
             <th>ID</th>
-            <th>Parser</th>
+            <th>Processor</th>
             <th>File</th>
             <th>Status</th>
             <th>Cost</th>
@@ -122,7 +122,7 @@
           </tr>
           <tr v-for="job in jobs" :key="job.id">
             <td>{{ job.id }}</td>
-            <td>{{ job.name || job.data.parser }}</td>
+            <td>{{ job.name || job.data.processor }}</td>
             <td :title="job.data.path">{{ getFileName(job.data.path) }}</td>
             <td>
               <span :class="`job-status status-${job.status}`">
@@ -177,12 +177,12 @@
       <div v-else class="failed-jobs-list">
         <div
           v-for="failure in failedJobs"
-          :key="`${failure.fileId}-${failure.parser}`"
+          :key="`${failure.fileId}-${failure.processor}`"
           class="failure-item"
         >
           <div class="failure-header">
             <span class="failure-file">{{ failure.fileName }}</span>
-            <span class="failure-parser">{{ failure.parser }}</span>
+            <span class="failure-processor">{{ failure.processor }}</span>
             <span class="failure-time">{{
               formatDate(failure.updatedAt * 1000)
             }}</span>
@@ -195,7 +195,7 @@
 
           <div class="failure-actions">
             <button
-              @click="retryFailedJob(failure.fileId, failure.parser)"
+              @click="retryFailedJob(failure.fileId, failure.processor)"
               class="btn btn-primary btn-small"
             >
               🔄 Retry
@@ -376,11 +376,11 @@ async function loadFailedJobs() {
   }
 }
 
-async function retryFailedJob(fileId, parser) {
+async function retryFailedJob(fileId, processor) {
   try {
     await $fetch("/api/retry-failed", {
       method: "POST",
-      body: { fileId, parser },
+      body: { fileId, processor },
     });
     // Refresh both regular jobs and failed jobs
     await Promise.all([loadJobs(), loadFailedJobs(), loadStatus()]);

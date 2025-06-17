@@ -543,3 +543,34 @@ The 3 movie files mentioned by the user are ready for testing the batch approval
   - Failed jobs section in web interface with prominent error display
   - **Elegant Retry Mechanism**: Instead of complex re-queuing, simply delete output file and let file watcher auto-reprocess
 - **Design Insight**: Retry by deletion leverages existing deletion recovery system for consistency and simplicity
+
+### **Codebase Consolidation & Refactoring (Partial)**
+
+**Architectural consolidation work completed in June 2025:**
+
+**Completed Tasks:**
+
+- **Eliminated Redundant Web Interfaces** - Removed standalone Express server, consolidated to Nuxt 3 application
+- **Simplified Design System Integration** - Moved design tokens into Nuxt project, streamlined pipeline
+- **Consolidated Script Organization** - Created organized script structure with unified command interface
+- **Resolved Parser/Processor Naming (Frontend Only)** - Updated user-facing interfaces to use "processor" terminology consistently
+- **Consolidated Database/Queue Clients** - Created unified service layer with health checking
+
+**Deferred Tasks (Significant Work Remaining):**
+
+- **Complete Backend Terminology Alignment** - Core system still uses "parser" terminology in database schema, TypeScript interfaces, and class names
+- **Directory Structure Flattening** - Deep nesting remains (`src/nuxt-web/server/api/...`)
+
+**Current State:**
+
+- Frontend consistently uses "processor" terminology
+- Backend maintains "parser" terminology (hybrid approach to avoid database migrations)
+- Single web interface with modern UI
+- Unified command structure via centralized scripts
+- Some architectural inconsistencies remain but system is functional
+
+**Next Priority Tasks Defined:**
+
+- Task A: Complete backend terminology alignment (high complexity, database migrations required)
+- Task B: Flatten directory structure (high complexity, affects all import paths)
+- Task C: Clean up remaining design-system package artifacts (low complexity)

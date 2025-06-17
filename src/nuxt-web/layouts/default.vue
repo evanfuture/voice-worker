@@ -36,11 +36,11 @@
             📁 Files & Tags
           </NuxtLink>
           <NuxtLink
-            to="/parsers"
+            to="/processors"
             class="nav-link"
-            :class="{ active: $route.path === '/parsers' }"
+            :class="{ active: $route.path === '/processors' }"
           >
-            ⚙️ Parser Config
+            ⚙️ Processor Config
           </NuxtLink>
         </div>
       </div>

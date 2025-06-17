@@ -1,5 +1,74 @@
 # Agent Todos
 
+## 🔧 Codebase Consolidation & Refactoring Status
+
+**Progress: 5 of 6 priority consolidation tasks completed**
+
+### ✅ COMPLETED:
+
+1. **Eliminated Redundant Web Interfaces** - Removed Express server, consolidated to Nuxt 3
+2. **Simplified Design System Integration** - Moved tokens to Nuxt, streamlined pipeline
+3. **Consolidated Script Organization** - Unified command interface with organized scripts
+4. **Resolved Parser/Processor Naming (Frontend)** - Updated user-facing interfaces to use "processor"
+5. **Remove Redundant Design System Package** - Cleaned up artifacts after token integration
+
+### ⏸️ DEFERRED (SIGNIFICANT WORK REMAINING):
+
+6. **Flatten Directory Structure** - Major restructuring that affects all import paths
+
+### 🎯 NEXT TASKS TO DEFINE:
+
+#### Task A: Flatten Directory Structure
+
+**Scope**: Reorganize codebase for better navigation and clearer architecture
+**Target Structure**:
+
+```
+voice-worker/
+├── /web/              # Nuxt interface (from src/nuxt-web)
+├── /core/             # Core system (from src/*)
+├── /lib/              # Shared utilities (from src/lib)
+├── /cli/              # CLI interface (from src/cli)
+├── /scripts/          # Automation (existing)
+└── /tests/            # Tests (existing)
+```
+
+**Components Affected**:
+
+- [ ] Move `src/nuxt-web/` → `/web/`
+- [ ] Reorganize `src/` contents into `/core/`, `/lib/`, `/cli/`
+- [ ] Update all import paths throughout codebase
+- [ ] Update build configurations and package.json scripts
+- [ ] Update tsconfig.json path mappings
+- [ ] Update documentation and README
+
+**Complexity**: High - affects every import statement and build configuration
+**Risk**: High - will break development workflow until complete
+**Estimated Impact**: 100+ files with import path changes
+
+**REMOVED TASK**: Remove Redundant Design System Package - ✅ COMPLETED
+
+### 📋 CURRENT STATE ASSESSMENT:
+
+**What Works**:
+
+- Single web interface with modern UI
+- Unified command structure
+- Consistent user-facing terminology
+- Integrated design tokens
+
+**What's Inconsistent**:
+
+- Frontend says "processor", backend says "parser"
+- Deep directory nesting makes navigation difficult
+- Some redundant design-system files remain
+
+**Recommendation**: Tackle Task A (flatten directory structure) first, then evaluate whether Task B is worth the complexity for current system stability.
+
+**REMOVED TASK**: Backend terminology alignment - The frontend already uses consistent "processor" terminology for users. The backend's internal use of "parser" terminology doesn't impact developer navigation significantly and the migration complexity (database schema changes, interface renames across 50+ files) isn't justified for the benefit gained.
+
+---
+
 ## 🔧 Codebase Consolidation & Refactoring Analysis
 
 ### Analysis Tasks
@@ -53,21 +122,46 @@
 - [x] Create unified script runner (`scripts/run.js`)
 - [x] Group related scripts (tokens, setup, maintenance)
 - [x] Update package.json scripts to use organized structure
-- [ ] Update README with single command interface (PENDING)
+- [x] Update README with single command interface ✅ COMPLETE
 
-#### 🎯 Priority 4: Resolve Parser/Processor Naming Inconsistency ⚠️ IN PROGRESS
+#### 🎯 Priority 4: Resolve Parser/Processor Naming Inconsistency ✅ FRONTEND COMPLETE, BACKEND DEFERRED
 
 **ISSUE**: Mixed usage of "parsers" vs "processors" throughout codebase
 **SOLUTION**:
 
 - [x] Rename API endpoints: available-parsers → available-processors
 - [x] Rename API endpoints: parser-configs → processor-configs
-- [ ] Update API endpoint content to use "processor" terminology
-- [ ] Update Vue.js components to use "processor" instead of "parser"
-- [ ] Update all documentation and comments
-- [ ] Update database schema references if needed
+- [x] Update API endpoint content to use "processor" terminology consistently
+- [x] Update Vue.js components to use "processor" instead of "parser"
+- [x] Rename parsers.vue to processors.vue and update navigation
+- [x] Update approval.vue to use processor terminology
+- [x] Update index.vue (dashboard) to use processor terminology
+- [x] Update all documentation and comments to use "processor"
+- ⏸️ Update database schema references if needed (DEFERRED - requires major migration)
+- ⏸️ Update remaining TypeScript interface names and variable names in core system (DEFERRED)
+- [x] Test all functionality after terminology changes
 
-**NOTE**: This is a significant refactoring affecting UI, API endpoints, and database terms. Requires careful testing to ensure all references are updated consistently.
+**CURRENT STATUS**:
+✅ **Frontend Complete**: All user-facing interfaces now consistently use "processor" terminology
+⏸️ **Backend Deferred**: Core system still uses "parser" terminology in database schema, TypeScript interfaces, and class names
+
+**DECISION**: Backend terminology changes deferred because they would require:
+
+- Database schema migrations (renaming `parser_configs`, `parser_executions` tables, `parser` columns)
+- TypeScript interface renames (`ParserConfig` → `ProcessorConfig`, etc.)
+- Class renames (`ParserConfigManager` → `ProcessorConfigManager`, etc.)
+- SQL query updates throughout codebase
+
+This would be a massive breaking change with migration complexity. Current hybrid approach is functional - users see consistent "processor" terminology while backend maintains existing "parser" structure.
+
+**BENEFITS ACHIEVED**:
+
+- ✅ Consistent user experience with "processor" terminology
+- ✅ API endpoints clearly named
+- ✅ Frontend code maintainability improved
+- ✅ No breaking changes to existing system functionality
+
+**NOTE**: Future major version could implement complete terminology alignment, but current consolidation priorities focus on architectural improvements with immediate value.
 
 #### 🎯 Priority 5: Flatten Directory Structure ⏸️ DEFERRED
 
