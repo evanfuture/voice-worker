@@ -4,8 +4,8 @@ import { config as dotenvConfig } from "dotenv";
 dotenvConfig(); // Load environment variables from .env file
 
 import { Command } from "commander";
-import { QueueClient } from "../queue/client.js";
-import { DatabaseClient } from "../db/client.js";
+import { QueueClient } from "../core/queue/client.js";
+import { DatabaseClient } from "../core/db/client.js";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { JobType } from "bullmq";

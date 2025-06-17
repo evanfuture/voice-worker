@@ -1,6 +1,6 @@
 # Agent Todos
 
-## 🔧 Codebase Consolidation & Refactoring Status
+## 🔧 Codebase Consolidation Status
 
 **Progress: 5 of 6 priority consolidation tasks completed**
 
@@ -12,43 +12,93 @@
 4. **Resolved Parser/Processor Naming (Frontend)** - Updated user-facing interfaces to use "processor"
 5. **Remove Redundant Design System Package** - Cleaned up artifacts after token integration
 
-### ⏸️ DEFERRED (SIGNIFICANT WORK REMAINING):
+### 🎯 CURRENT TASK: Flatten Directory Structure (Task A)
 
-6. **Flatten Directory Structure** - Major restructuring that affects all import paths
+**Goal**: Transform deep nested structure into clear monorepo organization
 
-### 🎯 NEXT TASKS TO DEFINE:
-
-#### Task A: Flatten Directory Structure
-
-**Scope**: Reorganize codebase for better navigation and clearer architecture
 **Target Structure**:
 
 ```
 voice-worker/
 ├── /web/              # Nuxt interface (from src/nuxt-web)
-├── /core/             # Core system (from src/*)
-├── /lib/              # Shared utilities (from src/lib)
+├── /core/             # Core system (from src/lib, src/processors, src/queue, src/watcher, src/db)
 ├── /cli/              # CLI interface (from src/cli)
 ├── /scripts/          # Automation (existing)
 └── /tests/            # Tests (existing)
 ```
 
-**Components Affected**:
+**Step-by-Step Plan**:
 
-- [ ] Move `src/nuxt-web/` → `/web/`
-- [ ] Reorganize `src/` contents into `/core/`, `/lib/`, `/cli/`
-- [ ] Update all import paths throughout codebase
-- [ ] Update build configurations and package.json scripts
-- [ ] Update tsconfig.json path mappings
-- [ ] Update documentation and README
+#### Phase 1: Prepare and Validate
 
-**Complexity**: High - affects every import statement and build configuration
-**Risk**: High - will break development workflow until complete
-**Estimated Impact**: 100+ files with import path changes
+- [x] Create new directory structure (empty directories)
+- [x] Update tsconfig.json with path mappings for new structure
+- [x] Test that TypeScript compilation still works with path mappings
 
-**REMOVED TASK**: Remove Redundant Design System Package - ✅ COMPLETED
+#### Phase 2: Move Core System Files
 
-### 📋 CURRENT STATE ASSESSMENT:
+- [x] Move `src/lib/` → `/core/lib/`
+- [x] Move `src/processors/` → `/core/processors/`
+- [x] Move `src/queue/` → `/core/queue/`
+- [x] Move `src/watcher/` → `/core/watcher/`
+- [x] Move `src/db/` → `/core/db/`
+- [x] Move `src/utils/` → `/core/utils/`
+- [x] Move `src/types.ts` → `/core/types.ts`
+- [x] Move `src/index.ts` → `/core/index.ts`
+
+#### Phase 3: Move CLI
+
+- [x] Move `src/cli/` → `/cli/`
+
+#### Phase 4: Move Web Interface
+
+- [x] Move `src/nuxt-web/` → `/web/`
+- [x] Update web interface package.json paths if needed
+
+#### Phase 5: Update Import Paths
+
+- [x] Update all imports in `/core/` to use new relative paths
+- [x] Update all imports in `/cli/` to use new relative paths
+- [x] Update all imports in `/web/` to use new relative paths
+- [x] Update imports in `/scripts/` to use new paths
+
+#### Phase 6: Update Build Configuration
+
+- [x] Update main package.json scripts to use new paths
+- [x] Update tsconfig.json build paths
+- [x] Update any hardcoded paths in scripts
+
+#### Phase 7: Clean Up and Validate
+
+- [x] Remove empty `src/` directory
+- [x] Test all functionality (CLI, web interface, scripts)
+- [x] Update README.md with new structure
+- [x] Commit changes
+
+**TASK A: COMPLETE ✅**
+
+All phases completed successfully. The monorepo structure is now:
+
+```
+voice-worker/
+├── /core/             # Core system (processors, queue, db, watcher, utils, types)
+├── /cli/              # CLI interface
+├── /web/              # Nuxt web interface
+├── /scripts/          # Automation scripts
+├── /docs/             # Documentation
+└── /tests/            # Tests
+```
+
+**Why This Approach Works**:
+
+- Each phase is independently testable
+- TypeScript path mappings allow gradual migration
+- Can rollback at any phase if issues arise
+- Maintains working system throughout process
+
+---
+
+## 📋 CURRENT STATE ASSESSMENT:
 
 **What Works**:
 
@@ -56,176 +106,43 @@ voice-worker/
 - Unified command structure
 - Consistent user-facing terminology
 - Integrated design tokens
+- Consolidated codebase (5/6 tasks complete)
 
 **What's Inconsistent**:
 
-- Frontend says "processor", backend says "parser"
 - Deep directory nesting makes navigation difficult
-- Some redundant design-system files remain
+- Frontend says "processor", backend says "parser" (acceptable inconsistency)
 
-**Recommendation**: Tackle Task A (flatten directory structure) first, then evaluate whether Task B is worth the complexity for current system stability.
-
-**REMOVED TASK**: Backend terminology alignment - The frontend already uses consistent "processor" terminology for users. The backend's internal use of "parser" terminology doesn't impact developer navigation significantly and the migration complexity (database schema changes, interface renames across 50+ files) isn't justified for the benefit gained.
-
----
-
-## 🔧 Codebase Consolidation & Refactoring Analysis
-
-### Analysis Tasks
-
-- [x] Examine current directory structure and identify redundant components
-- [x] Analyze package.json dependencies for consolidation opportunities
-- [x] Review code organization patterns and identify areas for improvement
-- [x] Identify unused or deprecated code paths
-- [x] Suggest architectural improvements for better maintainability
-- [x] Create recommendations for module consolidation
-- [x] Propose file/folder restructuring for better organization
-
-### Key Areas to Investigate
-
-- [x] Multiple package.json files and dependency management
-- [x] Separate web interfaces (Express + Nuxt)
-- [x] Design system integration complexity
-- [x] Script organization and automation
-- [x] Database and queue client separation
-- [x] Processor vs parser naming inconsistencies
-
-### 📋 CONSOLIDATION RECOMMENDATIONS
-
-#### 🎯 Priority 1: Eliminate Redundant Web Interfaces
-
-**ISSUE**: Two separate web servers (Express in `web.ts` + Nuxt) with overlapping functionality
-**SOLUTION**:
-
-- [x] Remove standalone Express server (`src/web.ts`, `src/web/`)
-- [x] Consolidate all web functionality into Nuxt application
-- [x] Move any Express-specific APIs to Nuxt server API routes
-- [x] Update package.json scripts to remove `npm run web` command
-
-#### 🎯 Priority 2: Simplify Design System Integration ✅ COMPLETE
-
-**ISSUE**: Design system is overly complex for current needs with separate package.json and build process
-**SOLUTION**:
-
-- [x] Move design tokens directly into Nuxt project (`assets/tokens/`)
-- [x] Integrate Style Dictionary build into main build process
-- [x] Remove separate design-system package.json (PENDING - after validation)
-- [x] Move token scripts to main package.json
-- [x] Keep Figma sync functionality but simplify the pipeline
-
-#### 🎯 Priority 3: Consolidate Script Organization ✅ COMPLETE
-
-**ISSUE**: Scripts scattered between `/scripts/` folder and multiple package.json files
-**SOLUTION**:
-
-- [x] Move all scripts to `/scripts/` directory with organized subdirectories
-- [x] Create unified script runner (`scripts/run.js`)
-- [x] Group related scripts (tokens, setup, maintenance)
-- [x] Update package.json scripts to use organized structure
-- [x] Update README with single command interface ✅ COMPLETE
-
-#### 🎯 Priority 4: Resolve Parser/Processor Naming Inconsistency ✅ FRONTEND COMPLETE, BACKEND DEFERRED
-
-**ISSUE**: Mixed usage of "parsers" vs "processors" throughout codebase
-**SOLUTION**:
-
-- [x] Rename API endpoints: available-parsers → available-processors
-- [x] Rename API endpoints: parser-configs → processor-configs
-- [x] Update API endpoint content to use "processor" terminology consistently
-- [x] Update Vue.js components to use "processor" instead of "parser"
-- [x] Rename parsers.vue to processors.vue and update navigation
-- [x] Update approval.vue to use processor terminology
-- [x] Update index.vue (dashboard) to use processor terminology
-- [x] Update all documentation and comments to use "processor"
-- ⏸️ Update database schema references if needed (DEFERRED - requires major migration)
-- ⏸️ Update remaining TypeScript interface names and variable names in core system (DEFERRED)
-- [x] Test all functionality after terminology changes
-
-**CURRENT STATUS**:
-✅ **Frontend Complete**: All user-facing interfaces now consistently use "processor" terminology
-⏸️ **Backend Deferred**: Core system still uses "parser" terminology in database schema, TypeScript interfaces, and class names
-
-**DECISION**: Backend terminology changes deferred because they would require:
-
-- Database schema migrations (renaming `parser_configs`, `parser_executions` tables, `parser` columns)
-- TypeScript interface renames (`ParserConfig` → `ProcessorConfig`, etc.)
-- Class renames (`ParserConfigManager` → `ProcessorConfigManager`, etc.)
-- SQL query updates throughout codebase
-
-This would be a massive breaking change with migration complexity. Current hybrid approach is functional - users see consistent "processor" terminology while backend maintains existing "parser" structure.
-
-**BENEFITS ACHIEVED**:
-
-- ✅ Consistent user experience with "processor" terminology
-- ✅ API endpoints clearly named
-- ✅ Frontend code maintainability improved
-- ✅ No breaking changes to existing system functionality
-
-**NOTE**: Future major version could implement complete terminology alignment, but current consolidation priorities focus on architectural improvements with immediate value.
-
-#### 🎯 Priority 5: Flatten Directory Structure ⏸️ DEFERRED
-
-**ISSUE**: Deep nesting makes navigation difficult (`src/nuxt-web/server/api/...`)
-**SOLUTION**:
-
-- [ ] Move Nuxt web interface to `/web/` or `/app/` at root level
-- [ ] Flatten API routes structure
-- [ ] Group related functionality (auth, files, parsers, jobs) into feature folders
-- [ ] Create clear separation between core system and web interface
-
-**DECISION**: Deferred until current system is fully validated and stable. This is a major structural change that could break existing functionality. Priority is on consolidating within current structure first.
-
-#### 🎯 Priority 6: Consolidate Database and Queue Clients ✅ COMPLETE
-
-**ISSUE**: Separate client files that could be unified
-**SOLUTION**:
-
-- [x] Create single `/src/lib/` directory for shared utilities
-- [x] Create unified service layer (`ServiceLayer`) that manages both database and queue clients
-- [x] Add health checking and proper error handling
-- [x] Create single configuration management system (`ConfigManager`)
-- [x] Add test script to validate service layer functionality
-- [x] Maintain backward compatibility with existing client interfaces
-
-### 🗂️ PROPOSED NEW STRUCTURE
-
-```
-voice-worker/
-├── package.json (consolidated dependencies)
-├── README.md
-├── AGENT_MEMORY.md
-├── AGENT_TODOS.md
-├── tsconfig.json
-├──
-├── /core/                    # Core system logic
-│   ├── processors/           # File processors (transcribe, summarize, etc.)
-│   ├── watcher/             # File system monitoring
-│   ├── queue/               # Job queue management
-│   ├── database/            # Database operations
-│   └── index.ts             # Main system entry point
+**Next Action**: Start Phase 1 - Prepare directory structure and TypeScript path mappings
+│ ├── processors/ # File processors (transcribe, summarize, etc.)
+│ ├── watcher/ # File system monitoring
+│ ├── queue/ # Job queue management
+│ ├── database/ # Database operations
+│ └── index.ts # Main system entry point
 │
-├── /web/                    # Nuxt web interface (moved from src/nuxt-web)
-│   ├── pages/
-│   ├── components/
-│   ├── server/api/
-│   ├── assets/tokens/       # Design tokens (moved from design-system)
-│   └── nuxt.config.ts
+├── /web/ # Nuxt web interface (moved from src/nuxt-web)
+│ ├── pages/
+│ ├── components/
+│ ├── server/api/
+│ ├── assets/tokens/ # Design tokens (moved from design-system)
+│ └── nuxt.config.ts
 │
-├── /cli/                    # CLI interface
-│   └── index.ts
+├── /cli/ # CLI interface
+│ └── index.ts
 │
-├── /lib/                    # Shared utilities and services
-│   ├── clients.ts           # Database + Queue clients
-│   ├── config.ts            # Configuration management
-│   └── types.ts             # Shared types
+├── /lib/ # Shared utilities and services
+│ ├── clients.ts # Database + Queue clients
+│ ├── config.ts # Configuration management
+│ └── types.ts # Shared types
 │
-├── /scripts/                # All automation scripts
-│   ├── setup/              # Setup and installation
-│   ├── tokens/             # Design token management
-│   └── maintenance/        # Database and queue maintenance
+├── /scripts/ # All automation scripts
+│ ├── setup/ # Setup and installation
+│ ├── tokens/ # Design token management
+│ └── maintenance/ # Database and queue maintenance
 │
-├── /prompts/                # Prompt templates
-└── /tests/                  # Test files (organized by feature)
+├── /prompts/ # Prompt templates
+└── /tests/ # Test files (organized by feature)
+
 ```
 
 ### 🎯 BENEFITS OF CONSOLIDATION
@@ -476,3 +393,4 @@ The system now supports full batch approval workflow with cost visibility and us
 - [x] Modify file watcher to check queue mode before auto-processing
 - [x] Add approval mode detection with prediction updates
 - [x] Ensure batch execution creates jobs with approval_batch_id
+```

@@ -5,7 +5,7 @@
  * Demonstrates configuration management and health checking
  */
 
-import { ServiceLayer, ConfigManager } from "../../src/lib/index.js";
+import { ServiceLayer, ConfigManager } from "../../dist/core/lib/index.js";
 
 async function testServiceLayer() {
   console.log("🧪 Testing Voice Worker Service Layer");

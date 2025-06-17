@@ -13,8 +13,15 @@
     "outDir": "./dist",
     "resolveJsonModule": true,
     "isolatedModules": true,
-    "noEmit": false
+    "noEmit": false,
+    "baseUrl": ".",
+    "paths": {
+      "@core/*": ["core/*"],
+      "@cli/*": ["cli/*"],
+      "@web/*": ["web/*"],
+      "@lib/*": ["core/lib/*"]
+    }
   },
-  "include": ["src/**/*"],
-  "exclude": ["node_modules", "dist", "src/nuxt-web/**/*"]
+  "include": ["core/**/*", "cli/**/*"],
+  "exclude": ["node_modules", "dist", "web/**/*"]
 }
