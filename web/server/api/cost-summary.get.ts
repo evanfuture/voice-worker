@@ -1,5 +1,8 @@
-import { QueueClient } from "../../../queue/client.js";
-import { formatCost, formatDuration } from "../../../utils/cost-calculator.js";
+import { QueueClient } from "../../../core/queue/client.js";
+import {
+  formatCost,
+  formatDuration,
+} from "../../../core/utils/cost-calculator.js";
 
 export default defineEventHandler(async (_event) => {
   const config = useRuntimeConfig();

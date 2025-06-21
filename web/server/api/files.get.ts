@@ -1,4 +1,4 @@
-import { DatabaseClient } from "../../../db/client.js";
+import { DatabaseClient } from "../../../core/db/client.js";
 
 export default defineEventHandler(async (_event) => {
   const config = useRuntimeConfig();

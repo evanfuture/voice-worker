@@ -1,4 +1,4 @@
-import { QueueClient } from "../../../../queue/client.js";
+import { QueueClient } from "../../../../core/queue/client.js";
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();

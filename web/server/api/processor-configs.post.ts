@@ -1,5 +1,5 @@
-import { DatabaseClient } from "../../../db/client.js";
-import type { ParserConfig } from "../../../types.js";
+import { DatabaseClient } from "../../../core/db/client.js";
+import type { ParserConfig } from "../../../core/types.js";
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();

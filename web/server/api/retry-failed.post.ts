@@ -1,4 +1,4 @@
-import { DatabaseClient } from "../../../db/client.js";
+import { DatabaseClient } from "../../../core/db/client.js";
 import { unlink } from "node:fs/promises";
 import { existsSync } from "node:fs";
 

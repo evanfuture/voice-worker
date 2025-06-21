@@ -1,11 +1,11 @@
-import { DatabaseClient } from "../../../db/client.js";
-import { ParserConfigManager } from "../../../processors/config-manager.js";
-import { ParserLoader } from "../../../processors/loader.js";
+import { DatabaseClient } from "../../../core/db/client.js";
+import { ParserConfigManager } from "../../../core/processors/config-manager.js";
+import { ParserLoader } from "../../../core/processors/loader.js";
 
 // OPTION C: Direct parser imports as backup for Nuxt context
-import { parser as convertVideoParser } from "../../../processors/convert-video.js";
-import { parser as transcribeParser } from "../../../processors/transcribe.js";
-import { parser as summarizeParser } from "../../../processors/summarize.js";
+import { parser as convertVideoParser } from "../../../core/processors/convert-video.js";
+import { parser as transcribeParser } from "../../../core/processors/transcribe.js";
+import { parser as summarizeParser } from "../../../core/processors/summarize.js";
 
 export default defineEventHandler(async (_event) => {
   const config = useRuntimeConfig();

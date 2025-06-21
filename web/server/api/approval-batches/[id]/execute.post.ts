@@ -1,6 +1,6 @@
-import { DatabaseClient } from "../../../../../db/client.js";
-import { QueueClient } from "../../../../../queue/client.js";
-import type { UserSelection } from "../../../../../types.js";
+import { DatabaseClient } from "../../../../../core/db/client.js";
+import { QueueClient } from "../../../../../core/queue/client.js";
+import type { UserSelection } from "../../../../../core/types.js";
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig();
