@@ -464,8 +464,13 @@ export class ParserConfigManager {
       const completedParsers = new Set<string>();
 
       // Track which parsers have been completed for this file
+      // A parser is only considered completed if it's marked as done AND the output file actually exists
       for (const parse of existingParses) {
-        if (parse.status === "done") {
+        if (
+          parse.status === "done" &&
+          parse.outputPath &&
+          existsSync(parse.outputPath)
+        ) {
           completedParsers.add(parse.parser);
         }
       }
@@ -581,8 +586,13 @@ export class ParserConfigManager {
     const completedParsers = new Set<string>();
 
     // Track which parsers have been completed for this file
+    // A parser is only considered completed if it's marked as done AND the output file actually exists
     for (const parse of existingParses) {
-      if (parse.status === "done") {
+      if (
+        parse.status === "done" &&
+        parse.outputPath &&
+        existsSync(parse.outputPath)
+      ) {
         completedParsers.add(parse.parser);
       }
     }
@@ -607,12 +617,14 @@ export class ParserConfigManager {
     // Remove duplicates from dependencies
     const uniqueDependencies = [...new Set(dependencies)];
 
-    return this.db.upsertPredictedJob(
+    const result = this.db.upsertPredictedJob(
       fileId,
       predictedChain,
       estimatedCosts,
       uniqueDependencies
     );
+
+    return result;
   }
 
   /**

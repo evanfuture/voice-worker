@@ -1,8 +1,8 @@
 <template>
   <div class="approval-page">
     <div class="page-header">
-      <h2>📋 Batch Approval</h2>
-      <p>Review and approve file processing with cost estimation</p>
+      <h2>📋 Job Approval</h2>
+      <p>Simple approval gate to control job processing</p>
 
       <div class="mode-controls">
         <div class="queue-mode">
@@ -28,62 +28,60 @@
       </div>
     </div>
 
-    <div v-if="loading" class="loading">Loading predicted jobs...</div>
+    <div v-if="loading" class="loading">Loading pending jobs...</div>
 
-    <div v-else-if="predictedJobs.length === 0" class="no-jobs">
-      <h3>📝 No files awaiting processing</h3>
-      <p>
-        Drop files in the dropbox folder to see processing predictions here.
+    <div v-else-if="pendingJobs.length === 0" class="no-jobs">
+      <h3>✅ No jobs waiting for approval</h3>
+      <p v-if="queueMode === 'auto'">
+        System is in auto mode - files will be processed automatically.
+      </p>
+      <p v-else>
+        Drop files in the dropbox folder and they will appear here for approval.
       </p>
     </div>
 
     <div v-else>
-      <!-- Cost Summary -->
-      <div class="cost-summary">
-        <h3>💰 Cost Summary</h3>
-        <div class="cost-info">
-          <div class="cost-item">
-            <span class="label">Selected Jobs:</span>
-            <span class="value">{{ selectedJobCount }}</span>
-          </div>
-          <div class="cost-item">
-            <span class="label">Total Estimated Cost:</span>
-            <span class="value cost-amount"
-              >${{ totalSelectedCost.toFixed(4) }}</span
-            >
-          </div>
-        </div>
-
-        <div class="batch-controls">
-          <input
-            v-model="batchName"
-            type="text"
-            placeholder="Batch name (optional)"
-            class="batch-name-input"
-          />
+      <!-- Selection Controls -->
+      <div class="selection-controls">
+        <h3>🎯 Jobs Waiting for Approval ({{ pendingJobs.length }})</h3>
+        <div class="controls-row">
+          <button @click="selectAll" class="btn btn-secondary btn-small">
+            Select All
+          </button>
+          <button @click="selectNone" class="btn btn-secondary btn-small">
+            Select None
+          </button>
           <button
-            @click="createAndExecuteBatch"
-            :disabled="selectedJobCount === 0 || executing"
+            @click="approveSelected"
+            :disabled="selectedJobs.length === 0 || approving"
             class="btn btn-primary"
           >
             {{
-              executing
-                ? "Creating Batch..."
-                : `Approve & Run ${selectedJobCount} Jobs`
+              approving ? "Approving..." : `Approve ${selectedJobs.length} Jobs`
             }}
           </button>
         </div>
       </div>
 
-      <!-- Files and Processing Chains -->
-      <div class="files-section">
-        <h3>📁 Files Awaiting Approval ({{ predictedJobs.length }})</h3>
-
-        <div class="files-list">
-          <div v-for="job in predictedJobs" :key="job.fileId" class="file-item">
-            <div class="file-header">
-              <div class="file-info">
+      <!-- Jobs List -->
+      <div class="jobs-list">
+        <div
+          v-for="job in pendingJobs"
+          :key="`${job.fileId}-${job.parser}`"
+          class="job-item"
+        >
+          <div class="job-header">
+            <label class="job-checkbox">
+              <input
+                type="checkbox"
+                :checked="isJobSelected(job.fileId, job.parser)"
+                @change="
+                  toggleJob(job.fileId, job.parser, $event.target.checked)
+                "
+              />
+              <div class="job-info">
                 <h4>{{ job.fileName }}</h4>
+                <span class="job-details">{{ job.parser }} processor</span>
                 <span class="file-path">{{ job.filePath }}</span>
                 <div class="file-tags" v-if="job.fileTags.length > 0">
                   <span v-for="tag in job.fileTags" :key="tag" class="tag">
@@ -91,95 +89,10 @@
                   </span>
                 </div>
               </div>
-              <div class="file-cost">
-                <span class="total-cost"
-                  >${{ job.totalEstimatedCost.toFixed(4) }}</span
-                >
-              </div>
-            </div>
-
-            <div class="processing-chain">
-              <h5>Processing Chain:</h5>
-              <div class="chain-steps">
-                <div
-                  v-for="(step, index) in job.predictedChain"
-                  :key="index"
-                  class="step"
-                >
-                  <div class="step-content">
-                    <label class="step-checkbox">
-                      <input
-                        type="checkbox"
-                        :checked="isStepSelected(job.fileId, step.processor)"
-                        @change="
-                          toggleStep(
-                            job.fileId,
-                            step.processor,
-                            $event.target.checked
-                          )
-                        "
-                      />
-                      <span class="step-name">{{ step.processor }}</span>
-                    </label>
-                    <div class="step-details">
-                      <span class="step-cost"
-                        >${{ step.estimatedCost.toFixed(4) }}</span
-                      >
-                      <span class="step-output"
-                        >→ {{ step.outputPath.split("/").pop() }}</span
-                      >
-                    </div>
-                  </div>
-
-                  <div
-                    v-if="index < job.predictedChain.length - 1"
-                    class="step-arrow"
-                  >
-                    ↓
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Active Batches -->
-      <div v-if="activeBatches.length > 0" class="active-batches">
-        <h3>🔄 Active Approval Batches</h3>
-        <div class="batches-list">
-          <div
-            v-for="batch in activeBatches"
-            :key="batch.id"
-            class="batch-item"
-          >
-            <div class="batch-header">
-              <h4>{{ batch.name || `Batch #${batch.id}` }}</h4>
-              <span :class="`status status-${batch.status}`">{{
-                batch.status
-              }}</span>
-            </div>
-
-            <div class="batch-progress" v-if="batch.progress">
-              <div class="progress-bar">
-                <div
-                  class="progress-fill"
-                  :style="{ width: batch.progress.percentComplete + '%' }"
-                ></div>
-              </div>
-              <span class="progress-text">
-                {{ batch.progress.completedJobs }}/{{
-                  batch.progress.totalJobs
-                }}
-                jobs complete
-              </span>
-            </div>
-
-            <div class="batch-cost">
-              <span>Estimated: ${{ batch.totalEstimatedCost.toFixed(4) }}</span>
-              <span v-if="batch.actualCost > 0">
-                | Actual: ${{ batch.actualCost.toFixed(4) }}
-              </span>
+            </label>
+            <div class="job-meta">
+              <span class="job-status">{{ job.status.replace("_", " ") }}</span>
+              <span class="job-time">{{ formatTime(job.updatedAt) }}</span>
             </div>
           </div>
         </div>
@@ -190,34 +103,12 @@
 
 <script setup>
 const loading = ref(true);
-const executing = ref(false);
+const approving = ref(false);
 const queueMode = ref("auto");
-const predictedJobs = ref([]);
-const activeBatches = ref([]);
-const selectedSteps = ref(new Map()); // Map of fileId -> Set of selected processor names
-const batchName = ref("");
+const pendingJobs = ref([]);
+const selectedJobs = ref([]);
 
-const selectedJobCount = computed(() => {
-  let count = 0;
-  for (const stepSet of selectedSteps.value.values()) {
-    count += stepSet.size;
-  }
-  return count;
-});
-
-const totalSelectedCost = computed(() => {
-  let total = 0;
-  for (const job of predictedJobs.value) {
-    const fileSteps = selectedSteps.value.get(job.fileId) || new Set();
-    for (const step of job.predictedChain) {
-      if (fileSteps.has(step.processor)) {
-        total += step.estimatedCost;
-      }
-    }
-  }
-  return total;
-});
-
+// Load queue mode
 async function loadQueueMode() {
   try {
     const response = await $fetch("/api/queue-mode");
@@ -227,53 +118,20 @@ async function loadQueueMode() {
   }
 }
 
-async function loadPredictedJobs() {
+// Load pending approval jobs
+async function loadPendingJobs() {
   try {
     loading.value = true;
-    const response = await $fetch("/api/predicted-jobs");
-    predictedJobs.value = response.predictedJobs;
-
-    // Initialize selection state for each file
-    for (const job of predictedJobs.value) {
-      if (!selectedSteps.value.has(job.fileId)) {
-        selectedSteps.value.set(job.fileId, new Set());
-      }
-    }
+    const response = await $fetch("/api/pending-approval");
+    pendingJobs.value = response.jobs;
   } catch (error) {
-    console.error("Failed to load predicted jobs:", error);
+    console.error("Failed to load pending jobs:", error);
   } finally {
     loading.value = false;
   }
 }
 
-async function loadActiveBatches() {
-  try {
-    const allBatches = await $fetch("/api/approval-batches");
-    activeBatches.value = allBatches.filter(
-      (batch) => batch.status === "processing" || batch.status === "pending"
-    );
-
-    // Load progress for processing batches
-    for (const batch of activeBatches.value) {
-      if (batch.status === "processing") {
-        try {
-          const progress = await $fetch(
-            `/api/approval-batches/${batch.id}/status`
-          );
-          batch.progress = progress.progress;
-        } catch (error) {
-          console.error(
-            `Failed to load progress for batch ${batch.id}:`,
-            error
-          );
-        }
-      }
-    }
-  } catch (error) {
-    console.error("Failed to load active batches:", error);
-  }
-}
-
+// Switch queue modes
 async function switchToApprovalMode() {
   try {
     await $fetch("/api/queue-mode", {
@@ -298,92 +156,75 @@ async function switchToAutoMode() {
   }
 }
 
-function isStepSelected(fileId, processorName) {
-  return selectedSteps.value.get(fileId)?.has(processorName) || false;
+// Job selection
+function isJobSelected(fileId, parser) {
+  return selectedJobs.value.some(
+    (job) => job.fileId === fileId && job.parser === parser
+  );
 }
 
-function toggleStep(fileId, processorName, checked) {
-  if (!selectedSteps.value.has(fileId)) {
-    selectedSteps.value.set(fileId, new Set());
-  }
-
-  const fileSteps = selectedSteps.value.get(fileId);
+function toggleJob(fileId, parser, checked) {
   if (checked) {
-    fileSteps.add(processorName);
+    selectedJobs.value.push({ fileId, parser });
   } else {
-    fileSteps.delete(processorName);
+    selectedJobs.value = selectedJobs.value.filter(
+      (job) => !(job.fileId === fileId && job.parser === parser)
+    );
   }
 }
 
-async function createAndExecuteBatch() {
-  if (selectedJobCount.value === 0) return;
+function selectAll() {
+  selectedJobs.value = pendingJobs.value.map((job) => ({
+    fileId: job.fileId,
+    parser: job.parser,
+  }));
+}
+
+function selectNone() {
+  selectedJobs.value = [];
+}
+
+// Approve selected jobs
+async function approveSelected() {
+  if (selectedJobs.value.length === 0) return;
 
   try {
-    executing.value = true;
+    approving.value = true;
 
-    // Create user selections array
-    const userSelections = [];
-    for (const job of predictedJobs.value) {
-      const fileSteps = selectedSteps.value.get(job.fileId);
-      if (fileSteps && fileSteps.size > 0) {
-        userSelections.push({
-          fileId: job.fileId,
-          filePath: job.filePath,
-          selectedSteps: Array.from(fileSteps),
-          totalCost: job.predictedChain
-            .filter((step) => fileSteps.has(step.processor))
-            .reduce((sum, step) => sum + step.estimatedCost, 0),
-        });
-      }
-    }
-
-    const batchNameToUse =
-      batchName.value || `Batch ${new Date().toISOString().split("T")[0]}`;
-
-    // Create approval batch
-    const batchResponse = await $fetch("/api/approval-batches", {
+    await $fetch("/api/approve-jobs", {
       method: "POST",
-      body: {
-        name: batchNameToUse,
-        userSelections,
-      },
+      body: { selectedJobs: selectedJobs.value },
     });
 
-    // Execute the batch immediately
-    await $fetch(
-      `/api/approval-batches/${batchResponse.approvalBatch.id}/execute`,
-      {
-        method: "POST",
-      }
-    );
+    // Clear selection and reload
+    selectedJobs.value = [];
+    await loadPendingJobs();
 
-    // Clear selections and reload
-    selectedSteps.value.clear();
-    batchName.value = "";
-
-    await loadPredictedJobs();
-    await loadActiveBatches();
+    console.log("Jobs approved successfully");
   } catch (error) {
-    console.error("Failed to create and execute batch:", error);
+    console.error("Failed to approve jobs:", error);
   } finally {
-    executing.value = false;
+    approving.value = false;
   }
+}
+
+// Utility functions
+function formatTime(timestamp) {
+  return new Date(timestamp * 1000).toLocaleString();
 }
 
 // Load data on mount
 onMounted(async () => {
-  await Promise.all([
-    loadQueueMode(),
-    loadPredictedJobs(),
-    loadActiveBatches(),
-  ]);
+  await Promise.all([loadQueueMode(), loadPendingJobs()]);
 });
 
-// Auto-refresh every 10 seconds (client-side only)
+// Auto-refresh every 10 seconds
 onMounted(() => {
   if (import.meta.client) {
     setInterval(async () => {
-      await loadActiveBatches();
+      if (!approving.value) {
+        await loadPendingJobs();
+      }
     }, 10000);
   }
 });
@@ -427,7 +268,7 @@ onMounted(() => {
   color: #f57c00;
 }
 
-.cost-summary {
+.selection-controls {
   background: #f8f9fa;
   border: 1px solid #e9ecef;
   border-radius: 8px;
@@ -435,69 +276,67 @@ onMounted(() => {
   margin-bottom: 30px;
 }
 
-.cost-info {
-  display: flex;
-  gap: 30px;
-  margin-bottom: 20px;
-}
-
-.cost-item {
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
-}
-
-.cost-amount {
-  font-size: 18px;
-  font-weight: bold;
-  color: var(--color-brand-primary);
-}
-
-.batch-controls {
+.controls-row {
   display: flex;
   gap: 15px;
   align-items: center;
+  margin-top: 15px;
 }
 
-.batch-name-input {
-  flex: 1;
-  max-width: 300px;
-  padding: 8px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 4px;
+.jobs-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
 }
 
-.files-section {
-  margin-bottom: 40px;
-}
-
-.file-item {
+.job-item {
   border: 1px solid #e5e7eb;
   border-radius: 8px;
-  margin-bottom: 20px;
+  padding: 20px;
   background: white;
 }
 
-.file-header {
+.job-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
-  padding: 20px;
-  border-bottom: 1px solid #f3f4f6;
 }
 
-.file-info h4 {
+.job-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 15px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.job-checkbox input[type="checkbox"] {
+  margin-top: 4px;
+}
+
+.job-info h4 {
   margin: 0 0 5px 0;
   color: #111827;
 }
 
-.file-path {
+.job-details {
+  display: block;
   color: #6b7280;
   font-size: 14px;
+  margin-bottom: 5px;
+}
+
+.file-path {
+  display: block;
+  color: #9ca3af;
+  font-size: 12px;
+  margin-bottom: 8px;
 }
 
 .file-tags {
-  margin-top: 8px;
+  display: flex;
+  gap: 5px;
+  flex-wrap: wrap;
 }
 
 .tag {
@@ -505,149 +344,28 @@ onMounted(() => {
   color: #1e40af;
   padding: 2px 8px;
   border-radius: 12px;
-  font-size: 12px;
-  margin-right: 5px;
+  font-size: 11px;
 }
 
-.file-cost {
-  text-align: right;
-}
-
-.total-cost {
-  font-size: 18px;
-  font-weight: bold;
-  color: #059669;
-}
-
-.processing-chain {
-  padding: 20px;
-}
-
-.processing-chain h5 {
-  margin: 0 0 15px 0;
-  color: #374151;
-}
-
-.step {
-  margin-bottom: 15px;
-}
-
-.step-content {
+.job-meta {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #f9fafb;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
-  padding: 12px 16px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 5px;
 }
 
-.step-checkbox {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.step-name {
-  font-weight: 500;
-  color: #374151;
-}
-
-.step-details {
-  display: flex;
-  align-items: center;
-  gap: 15px;
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.step-cost {
-  font-weight: 500;
-  color: #059669;
-}
-
-.step-arrow {
-  text-align: center;
-  color: #9ca3af;
-  font-size: 18px;
-  margin: 5px 0;
-}
-
-.active-batches {
-  margin-top: 40px;
-}
-
-.batch-item {
-  background: white;
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
-  padding: 20px;
-  margin-bottom: 15px;
-}
-
-.batch-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 15px;
-}
-
-.batch-header h4 {
-  margin: 0;
-  color: #111827;
-}
-
-.status {
-  padding: 4px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 500;
-}
-
-.status-pending {
-  background: #fef3c7;
-  color: #92400e;
-}
-
-.status-processing {
-  background: #dbeafe;
-  color: #1e40af;
-}
-
-.status-completed {
-  background: #d1fae5;
-  color: #065f46;
-}
-
-.status-failed {
-  background: #fee2e2;
-  color: #dc2626;
-}
-
-.progress-bar {
-  width: 100%;
-  height: 8px;
-  background: #e5e7eb;
+.job-status {
+  padding: 4px 8px;
   border-radius: 4px;
-  overflow: hidden;
-  margin-bottom: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: #fff3e0;
+  color: #f57c00;
+  text-transform: capitalize;
 }
 
-.progress-fill {
-  height: 100%;
-  background: #3b82f6;
-  transition: width 0.3s ease;
-}
-
-.progress-text {
-  font-size: 14px;
-  color: #6b7280;
-}
-
-.batch-cost {
-  margin-top: 10px;
-  font-size: 14px;
+.job-time {
+  font-size: 12px;
   color: #6b7280;
 }
 
@@ -672,7 +390,7 @@ onMounted(() => {
   color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #1d4ed8;
 }
 

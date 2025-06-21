@@ -1,5 +1,5 @@
 import { DatabaseClient } from "../../../core/db/client.js";
-import { ParserConfigManager } from "../../../core/processors/config-manager.js";
+import { ParserConfigManager } from "../../../core/lib/config-manager.js";
 import { ParserLoader } from "../../../core/processors/loader.js";
 
 // OPTION C: Direct parser imports as backup for Nuxt context
@@ -13,13 +13,13 @@ export default defineEventHandler(async (_event) => {
   try {
     console.log("🔍 DEBUG: Starting predicted jobs API call");
     console.log(`🔍 DEBUG: Current working directory: ${process.cwd()}`);
-    console.log(`🔍 DEBUG: ParserLoader path: ../processors`);
+    console.log(`🔍 DEBUG: ParserLoader path: ../core/processors`);
     console.log(`🔍 DEBUG: Database path: ${config.dbPath}`);
 
     // Debug database path resolution
     const path = await import("node:path");
     const dbPath = path.resolve(config.dbPath);
-    const processorPath = path.resolve("../processors");
+    const processorPath = path.resolve("../core/processors");
     console.log(`🔍 DEBUG: Resolved database path: ${dbPath}`);
     console.log(`🔍 DEBUG: Resolved processor path: ${processorPath}`);
 
@@ -34,7 +34,7 @@ export default defineEventHandler(async (_event) => {
     const configManager = new ParserConfigManager(db);
 
     // Try both approaches: dynamic loading and direct imports
-    const parserLoader = new ParserLoader("../processors");
+    const parserLoader = new ParserLoader("../core/processors");
     await parserLoader.loadParsers();
     let availableParsers = parserLoader.getAllParsers();
 
@@ -75,7 +75,7 @@ export default defineEventHandler(async (_event) => {
       try {
         const fs = await import("node:fs/promises");
         const path = await import("node:path");
-        const processorPath = path.resolve("../processors");
+        const processorPath = path.resolve("../core/processors");
         console.log(`🔍 DEBUG: Resolved processor path: ${processorPath}`);
 
         const files = await fs.readdir(processorPath);
@@ -113,9 +113,10 @@ export default defineEventHandler(async (_event) => {
     );
 
     console.log(`🔍 Getting all predicted jobs for ${allFiles.length} files`);
-    const predictedJobs =
-      await configManager.getAllPredictedJobs(availableParsers);
-    console.log(`🔍 Generated ${predictedJobs.length} predicted jobs`);
+    const predictedJobs = db.getAllPredictedJobs();
+    console.log(
+      `🔍 Retrieved ${predictedJobs.length} predicted jobs from database`
+    );
 
     // Debug a specific file if we have .mov files
     const movFiles = allFiles.filter((f) =>

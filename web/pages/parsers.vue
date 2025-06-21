@@ -180,7 +180,7 @@
             <div class="form-group">
               <label>Processor Implementation:</label>
               <select
-                v-model="formData.processorImplementation"
+                v-model="formData.parserImplementation"
                 required
                 :disabled="!!editingConfig"
                 @change="onProcessorImplementationChange"
@@ -302,7 +302,7 @@ const editingConfig = ref(null);
 // Form data
 const formData = ref({
   name: "",
-  processorImplementation: "",
+  parserImplementation: "",
   displayName: "",
   description: "",
   outputExt: "",
@@ -340,7 +340,7 @@ function editConfig(config) {
   editingConfig.value = config;
   formData.value = {
     name: config.name,
-    processorImplementation: config.name, // Assume config name matches processor implementation
+    parserImplementation: config.parserImplementation,
     displayName: config.displayName,
     description: config.description,
     outputExt: config.outputExt,
@@ -354,7 +354,7 @@ function editConfig(config) {
 
 function onProcessorImplementationChange() {
   const selectedProcessor = availableProcessors.value.find(
-    (p) => p.name === formData.value.processorImplementation
+    (p) => p.name === formData.value.parserImplementation
   );
 
   if (selectedProcessor && !editingConfig.value) {
@@ -378,7 +378,7 @@ function closeForm() {
   editingConfig.value = null;
   formData.value = {
     name: "",
-    processorImplementation: "",
+    parserImplementation: "",
     displayName: "",
     description: "",
     outputExt: "",

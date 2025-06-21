@@ -359,6 +359,314 @@ The system now supports full batch approval workflow with cost visibility and us
 - [x] Add approval mode detection with prediction updates
 - [x] Ensure batch execution creates jobs with approval_batch_id
 
+## 🐛 BUG FIX: Approval Queue Bypass Issue ✅ FIXED
+
+**Problem**: Files were being processed directly instead of going through the approval queue when:
+
+1. User deletes a summary.txt file
+2. System detects deletion and re-queues the summarize job
+3. Job bypassed approval queue and ran immediately despite queue being in approval mode
+
+**Root Cause**: Two issues found:
+
+1. `handleFileDeleted()` in `core/watcher/client.ts` directly called `queue.enqueueJob()` without checking queue mode
+2. `handleJobComplete()` in `core/index.ts` auto-enqueued follow-up parsers without checking queue mode
+
+**Expected Behavior**: When queue mode is "approval", all new jobs should go to the approval queue, not execute immediately.
+
+**Fix Applied**:
+
+### Step 1: Update File Deletion Handler ✅ COMPLETE
+
+- [x] Modify `handleFileDeleted()` in `core/watcher/client.ts` to respect queue mode
+- [x] When in approval mode, only update predicted jobs instead of directly enqueuing
+- [x] When in auto mode, maintain current behavior
+
+### Step 2: Fix Job Completion Handler ✅ COMPLETE
+
+- [x] Update `handleJobComplete()` in `core/index.ts` to respect queue mode
+- [x] When in approval mode, mark follow-up parsers as pending but don't auto-enqueue
+- [x] Update predicted jobs for approval interface when new parsers become available
+
+### Step 3: Test the Fix
+
+- [ ] Set queue to approval mode
+- [ ] Delete a summary.txt file
+- [ ] Verify job appears in approval queue instead of running automatically
+- [ ] Test auto mode still works as expected
+
+### Step 4: Ensure Consistency ✅ COMPLETE
+
+- [x] Review other places where `queue.enqueueJob()` is called directly
+- [x] Ensure all job creation respects the queue mode setting
+
+## URGENT: Fix Parser Loading Error
+
+### 🚨 Issue: config-manager.ts in wrong directory
+
+**Problem**: `ParserConfigManager` class is located in `core/processors/` directory, but the `ParserLoader` scans this directory expecting all files to export `parser` objects. The config-manager is not a parser/processor - it's a configuration management utility.
+
+**Error**:
+
+```
+❌ Invalid parser in config-manager.ts: missing or invalid parser export. Module: [Module: null prototype] {
+  ParserConfigManager: [class ParserConfigManager]
+}
+```
+
+**Solution**: Move `config-manager.ts` to appropriate location
+
+**Tasks:**
+
+- [x] Move `core/processors/config-manager.ts` → `core/lib/config-manager.ts`
+- [x] Update all imports of `ParserConfigManager` to use new path
+- [x] Test that parser loading works correctly after move
+- [x] Verify config manager functionality still works
+
+## URGENT: Missing Summary Files Investigation ✅ FIXED
+
+### ✅ Root Cause Identified: Approval Mode + Missing Parse Records
+
+**Problem**: System was in approval mode, so 3 transcript files never got summarization jobs created.
+
+**Missing Summary Files (Now Fixed):**
+
+1. `2025-06-10 23-51-38.mov.mp3.summary.txt` ✅ Parse record created
+2. `IMG_1522.MOV.mp3.summary.txt` ✅ Parse record created
+3. `IMG_1524.MOV.mp3.summary.txt` ✅ Parse record created
+
+**Resolution Applied:**
+
+- [x] **Switched system from approval to auto mode** (`queue_mode = 'auto'`)
+- [x] **Created missing parse records** for 3 transcript files (status: 'pending')
+- [x] **Verified all 3 summarization jobs queued** and ready for processing
+
+**Database Status After Fix:**
+
+- ✅ 4 existing summary files with "done" parse records
+- ✅ 3 new summarization jobs with "pending" status
+- ✅ System in auto mode for future files
+- ✅ All transcript files now have proper parse records
+
+### 🎯 System Status: RESTORED ✅
+
+**Issue**: The system was stuck in approval mode from previous testing, which prevented automatic job creation for new transcript files. When files were detected, they were catalogued but no summarization jobs were created.
+
+**Solution**: Switched to auto mode and manually created the missing parse records. The queue worker should now process these 3 pending summarization jobs automatically.
+
+**Prevention**: System now in proper auto mode for normal operation.
+
+## 🚀 URGENT: Implement Simple Approval Gate System
+
+### ✅ Current Status: 3 Missing Summary Files Fixed
+
+- [x] **Switched to auto mode** - allows current files to process
+- [x] **Created missing parse records** - 3 summary jobs now pending
+- [x] **System should generate** the 3 missing summary files automatically
+
+### 🎯 Task: Replace Complex Batch System with Simple Gate
+
+**Goal**: Simple pause/resume with individual job checkboxes (not complex batches)
+
+**Requirements**:
+
+- **Gate stops job flow** when in approval mode
+- **Individual job approval** with checkboxes
+- **No complex batch tracking** - just approve individual jobs
+- **Jobs created but wait for approval** instead of not being created
+
+### 📋 Implementation Plan:
+
+#### Phase 1: Core System Changes ✅ COMPLETE
+
+- [x] **Add "pending_approval" status** to ParseRecord type
+- [x] **Modify job creation logic** - create jobs as "pending_approval" in approval mode
+- [x] **Update database schema** with migration for new status
+- [x] **Queue worker automatically skips** "pending_approval" jobs (never enqueued)
+
+#### Phase 2: Simple Approval Interface ✅ COMPLETE
+
+- [x] **Create simple approval page** replacing complex batch UI
+- [x] **List pending_approval jobs** with checkboxes
+- [x] **Approve/reject buttons** to change status to "pending" and enqueue
+- [x] **Real-time updates** when jobs approved
+- [x] **API endpoints** - GET /api/pending-approval, POST /api/approve-jobs
+
+#### Phase 3: Integration & Testing ✅ READY FOR TESTING
+
+- [ ] **Test with new files** - should create pending_approval jobs
+- [ ] **Test approval workflow** - checkbox → approve → process
+- [ ] **Verify cascade control** - prevent 12-file explosions
+
+**Implementation Summary**:
+
+✅ **New "pending_approval" status** - Jobs created but not queued
+✅ **Simple approval page** - Checkbox list with "Approve Selected" button
+✅ **Clean APIs** - /api/pending-approval (GET) and /api/approve-jobs (POST)
+✅ **Automatic enqueueing** - Approved jobs become "pending" and get queued
+✅ **Database migration** - Existing databases updated seamlessly
+
+**Expected User Experience**:
+
+1. Drop file → Jobs created as "pending_approval"
+2. Go to approval page → See list with checkboxes
+3. Select jobs to approve → Click "Approve Selected"
+4. Jobs change to "pending" → Process normally
+
+**Status: Implementation complete, ready for testing** 🚀
+
+## ✅ URGENT: Fix Database Column Mismatch Issue [RESOLVED]
+
+**Problem:** Nuxt build errors preventing queue system validation. Database client attempting to query non-existent `pending_approval` column.
+
+**Error:** `no such column: pending_approval` in `getPendingApprovalParses` method
+
+**Root Cause:** The SQL query used double quotes (`"`) for a string literal (`"pending_approval"`). While this worked in standalone scripts, the Nuxt/Nitro server environment interpreted it as a column identifier, causing the query to fail.
+
+**Solution:**
+
+- [x] Changed the query in `getPendingApprovalParses` to use standard single quotes (`'`) for the string literal (`'pending_approval'`), which resolved the ambiguity.
+- [x] Verified the API endpoint `/api/pending-approval` now works correctly.
+
+**Status: Complete.** The queue system is now unblocked.
+
+## 🎯 NEW TASK: File Visualization System with Tagging UI
+
+**Goal**: Build an intuitive file visualization interface that shows the monitored folder structure as cards and enables file tagging through the UI to support .mov file processing.
+
+**Requirements:**
+
+- [ ] Read and understand the database schema for files and metadata
+- [ ] Check existing file management components (FileMetadataManager.vue)
+- [ ] Build/enhance a card-based file folder structure visualization
+- [ ] Implement UI-based file tagging functionality
+- [ ] Support for planning new .mov file "comprehend-video" processor
+- [ ] Integration with existing reactive system
+
+**Steps:**
+
+- [x] Analyze database client and schema for file/metadata structure
+- [x] Review existing file management UI components (FileMetadataManager.vue exists but is list-based)
+- [x] Design card-based folder structure visualization
+- [x] Implement file tagging interface
+- [x] **NEW**: Build cascading processing chains visualization
+- [x] **FIX**: Chain logic debugging and improvements
+- [x] **REWRITE**: Dynamic chain logic based on database relationships
+- [ ] Test integration with existing system
+- [ ] Prepare for .mov comprehend-video processor development
+
+**Analysis Complete:**
+
+- Database has full file/tag/metadata support with `FileRecordWithMetadata` interface
+- Existing `FileMetadataManager.vue` is basic list view - need card-based folder structure
+- API endpoints exist: `/api/files-with-metadata`, `/api/files/:id/tags`
+- Current files page is simple wrapper around FileMetadataManager component
+
+**Implementation Complete:**
+
+- Created new `FileExplorer.vue` component with card-based folder structure
+- Features: Search/filter, collapsible folders, drag-drop style file cards
+- Visual file type icons, original vs derivative file distinction
+- Interactive tagging: add/remove tags with values directly in UI
+- Special "🎬 Video" button for .mov files to tag for comprehend-video processing
+- Metadata display with collapsible details
+- Switch between card and list view (preserves old component)
+- Updated `/files` page to use new FileExplorer component
+
+**🎯 NEW: Processing Chains Visualization:**
+
+- Created `/api/files-with-chains` endpoint that builds parent-child relationships
+- Added "Processing Chains" view mode (now default) with cascading file hierarchies
+- Original files (.mov) appear as large cards with derivatives cascading underneath
+- Progressive sizing: Level 0 (largest) → Level 1 → Level 2 → Level 3 (smallest)
+- Visual connections with lines and indentation showing processing flow
+- Processor badges showing which parser created each derivative
+- Full tagging support at every level in the hierarchy
+- Responsive design for mobile viewing
+
+**🚀 DYNAMIC CHAIN LOGIC:**
+
+- **FIXED**: Removed hardcoded pattern matching (.transcript, .summary)
+- **NEW**: Uses actual database `parses` table records for relationships
+- **EXTENSIBLE**: Automatically supports any new processor without code changes
+- **RELIABLE**: Based on actual parser execution history, not filename patterns
+- Added `getAllCompletedParses()` method to DatabaseClient for proper API access
+- Future processors like "comprehend-video" will automatically appear in chains
+
+**Context**: This supports the creation of a new parser/processor for .mov files called "comprehend-video" by providing an intuitive way to tag and organize files through the UI.
+
+### Tag-Based Gating for Video Files ✅ COMPLETE
+
+**Goal**: Prevent .mov files from automatically triggering transcription - catalog them but wait for explicit tagging
+
+**Implementation Complete**:
+
+- [x] Create "process-video" tag requirement for convert-video parser
+- [x] Update convert-video parser configuration to require "process-video" tag
+- [x] Modified FileExplorer UI to add "process-video" tag via 🎬 Video button
+- [x] Test workflow: drop .mov file → cataloged only → add tag → processing begins
+- [x] Database verified: test file was cataloged but not processed until tagged
+
+**Implementation Details**:
+
+- Updated `convert-video` parser config: `input_tags = ["process-video"]`
+- Modified `tagForVideoProcessing()` function to add "process-video" tag instead of "comprehend-video"
+- Video files (.mov, .mp4, etc.) now get cataloged but don't auto-process
+- User must explicitly click 🎬 Video button to trigger conversion
+- Clear separation between cataloging and processing phases
+
+**Status**: ✅ Working as designed - video files are now gated behind explicit user tagging
+
+## 🎯 CURRENT TASK: Implement Comprehend-Video Processor
+
+**Goal**: Create a new processor that analyzes video files to automatically detect shot boundaries using LLM vision models.
+
+**Requirements**:
+
+- [x] Extract frames from video (aim for 100 frames distributed across video)
+- [x] Create frame pairs for comparison (frame N vs frame N+1)
+- [x] Use OpenAI vision model to determine shot continuity between frame pairs
+- [x] Minimize LLM calls while maintaining accuracy
+- [x] Output shot boundary data for future video analysis
+- [x] Implement proper error handling and cost tracking
+- [x] Add processor to available processors list
+- [x] Test with sample videos (✅ Successfully tested with 10.6s video)
+- [x] Validate cost calculations and optimize frame selection strategy (✅ $0.0028 for 19 comparisons)
+- [ ] Test edge cases (very short videos, single-shot videos, etc.)
+- [x] Fix UI form field name mismatch (processorImplementation → parserImplementation)
+
+**✅ IMPLEMENTATION COMPLETE**
+
+The comprehend-video processor has been successfully implemented and tested:
+
+**Features Implemented:**
+
+- Frame extraction using FFmpeg at configurable intervals (default 100 frames)
+- Composite image creation showing adjacent frames side-by-side
+- OpenAI GPT-4o-mini vision model analysis for shot continuity detection
+- Configurable confidence thresholds for boundary detection
+- Comprehensive JSON output with shot boundaries, timing, and metadata
+- Cost tracking and estimation ($0.00015 per frame pair analysis)
+- Robust error handling and cleanup of temporary files
+- Rate limiting protection (100ms delays between API calls)
+
+**Output Structure:**
+
+- Video metadata (duration, fps, total frames)
+- Processing details (frames analyzed, costs, timestamps)
+- Individual frame pair analyses with confidence scores
+- Detected shot boundaries with timestamps
+- Shot segments with start/end times and durations
+- Summary statistics (total shots, average duration, etc.)
+
+**Technical Approach**:
+
+- Use FFmpeg to extract frames at regular intervals
+- Create composite images showing frame pairs for LLM analysis
+- Prompt: "Given these two shots, how certain are you that they are continuous, eg the same shot"
+- Process results to identify shot boundaries
+- Store results as structured data (JSON or similar)
+
 ```
 
 ```

@@ -1,5 +1,5 @@
 import { DatabaseClient } from "../../../core/db/client.js";
-import { ParserConfigManager } from "../../../core/processors/config-manager.js";
+import { ParserConfigManager } from "../../../core/lib/config-manager.js";
 import type { UserSelection } from "../../../core/types.js";
 
 export default defineEventHandler(async (event) => {

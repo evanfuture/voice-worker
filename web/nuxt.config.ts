@@ -24,7 +24,7 @@ export default defineNuxtConfig({
     // Server-side environment variables
     redisHost: process.env.REDIS_HOST || "localhost",
     redisPort: process.env.REDIS_PORT || "6379",
-    dbPath: process.env.DB_PATH || "../../data.db",
+    dbPath: process.env.DB_PATH || resolve(__dirname, "../data.db"),
     openaiApiKey: process.env.OPENAI_API_KEY,
     public: {
       // Client-side environment variables

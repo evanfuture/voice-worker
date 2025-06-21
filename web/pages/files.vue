@@ -2,10 +2,13 @@
   <div class="files-page">
     <div class="page-header">
       <h2>📁 Files & Tags</h2>
-      <p>Manage file metadata, tags, and organization</p>
+      <p>
+        Explore your files in a card-based folder structure, add tags, and
+        prepare for video processing
+      </p>
     </div>
 
-    <FileMetadataManager />
+    <FileExplorer />
   </div>
 </template>
 

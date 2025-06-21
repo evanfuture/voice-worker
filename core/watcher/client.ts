@@ -4,7 +4,7 @@ import { existsSync } from "node:fs";
 import type { DatabaseClient } from "../db/client.js";
 import type { QueueClient } from "../queue/client.js";
 import type { ParserLoader } from "../processors/loader.js";
-import { ParserConfigManager } from "../processors/config-manager.js";
+import { ParserConfigManager } from "../lib/config-manager.js";
 
 export class FileWatcher {
   private watcher: chokidar.FSWatcher | null = null;
@@ -63,28 +63,48 @@ export class FileWatcher {
   private async handleFileDeleted(filePath: string): Promise<void> {
     console.log(`File deleted: ${basename(filePath)}`);
 
-    // Find any parses that had this file as output and mark them as pending
+    // Determine queue mode for re-queuing
+    const queueMode = (this.db.getSetting("queue_mode") || "auto") as
+      | "auto"
+      | "approval";
+
+    // Find any parses that had this file as output and mark them for re-queuing
     console.log(`🔍 Checking for parses with output: ${filePath}`);
-    const affectedParses = this.db.markParsesAsPendingByOutputPath(filePath);
+    const affectedParses = this.db.markParsesForRequeuing(filePath, queueMode);
 
     if (affectedParses.length > 0) {
       console.log(`📝 Found ${affectedParses.length} parses to re-queue`);
-    } else {
-      console.log(`📝 No parses found with this output path`);
     }
 
-    // Re-enqueue jobs for the affected parses BEFORE deleting the file record
-    for (const parse of affectedParses) {
-      const file = this.db.getFileById(parse.fileId);
-      if (file && existsSync(file.path)) {
-        console.log(
-          `🔄 Re-queuing ${parse.parser} for ${basename(file.path)} (output was deleted)`
-        );
-        await this.queue.enqueueJob(parse.parser, file.path);
-      } else {
-        console.log(
-          `⚠️  Cannot re-queue ${parse.parser}: source file ${file?.path || "unknown"} not found`
-        );
+    // Only enqueue jobs if in auto mode
+    if (queueMode === "auto") {
+      for (const parse of affectedParses) {
+        const file = this.db.getFileById(parse.fileId);
+        if (file && existsSync(file.path)) {
+          console.log(
+            `🔄 Re-queuing ${parse.parser} for ${basename(
+              file.path
+            )} (output was deleted)`
+          );
+          await this.queue.enqueueJob(parse.parser, file.path);
+        } else {
+          console.log(
+            `⚠️  Cannot re-queue ${parse.parser}: source file ${
+              file?.path || "unknown"
+            } not found`
+          );
+        }
+      }
+    } else {
+      for (const parse of affectedParses) {
+        const file = this.db.getFileById(parse.fileId);
+        if (file) {
+          console.log(
+            `📋 Approval mode: ${parse.parser} for ${basename(
+              file.path
+            )} is now waiting for approval.`
+          );
+        }
       }
     }
 
@@ -107,20 +127,7 @@ export class FileWatcher {
         console.log(
           `📋 Approval mode: cataloged ${basename(filePath)} but waiting for user approval`
         );
-
-        // Still update predicted jobs for the approval interface
-        const fileTags = this.db
-          .getFileTags(fileRecord.id)
-          .map((tag) => tag.tag);
-        const availableParsers = this.parserLoader.getAllParsers();
-        await this.configManager.updatePredictedJob(
-          fileRecord.id,
-          filePath,
-          fileTags,
-          availableParsers
-        );
-
-        return; // Don't auto-process in approval mode
+        return; // Don't auto-process in approval mode - jobs will be created as pending_approval when needed
       }
 
       // Auto-tag transcript files

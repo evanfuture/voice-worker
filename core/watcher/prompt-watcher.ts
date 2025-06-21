@@ -2,7 +2,7 @@ import chokidar from "chokidar";
 import { basename, join } from "node:path";
 import { readFileSync, existsSync } from "node:fs";
 import type { DatabaseClient } from "../db/client.js";
-import { ParserConfigManager } from "../processors/config-manager.js";
+import { ParserConfigManager } from "../lib/config-manager.js";
 
 export class PromptWatcher {
   private watcher: chokidar.FSWatcher | null = null;

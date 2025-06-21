@@ -10,7 +10,7 @@ export interface FileRecord {
 export interface ParseRecord {
   fileId: number;
   parser: string;
-  status: "pending" | "processing" | "done" | "failed";
+  status: "pending" | "processing" | "done" | "failed" | "pending_approval";
   outputPath: string | null;
   updatedAt: number;
   error?: string;

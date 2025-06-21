@@ -37,6 +37,14 @@ export default defineEventHandler(async (_event) => {
         dependsOn: [],
         description: "Converts video files to MP3 audio files using FFmpeg",
       },
+      {
+        name: "comprehend-video",
+        inputExtensions: [".mov", ".mp4", ".avi", ".mkv", ".webm", ".flv"],
+        outputExt: ".shots.json",
+        dependsOn: [],
+        description:
+          "Analyzes video files to detect shot boundaries using AI vision models",
+      },
     ];
 
     return {

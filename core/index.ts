@@ -9,7 +9,7 @@ import { dirname } from "node:path";
 import { DatabaseClient } from "./db/client.js";
 import { QueueClient } from "./queue/client.js";
 import { ParserLoader } from "./processors/loader.js";
-import { ParserConfigManager } from "./processors/config-manager.js";
+import { ParserConfigManager } from "./lib/config-manager.js";
 import { FileWatcher } from "./watcher/client.js";
 import { PromptWatcher } from "./watcher/prompt-watcher.js";
 
@@ -129,6 +129,9 @@ async function main() {
   console.log("🔧 Initializing components...");
 
   const db = new DatabaseClient(config.dbPath);
+  // Run migrations once at startup
+  db.runMigrationsIfNeeded();
+
   const queue = new QueueClient(config.redisHost, config.redisPort);
   const parserLoader = new ParserLoader(config.processorsDir);
 
@@ -147,7 +150,7 @@ async function main() {
   await configManager.initializeDefaultConfigs(parsers);
 
   // Set up job completion handler
-  const handleJobComplete = (result: {
+  const handleJobComplete = async (result: {
     outputPath: string;
     parser: string;
     inputPath: string;
@@ -182,6 +185,9 @@ async function main() {
           .map((parse) => parse.parser)
       );
 
+      // Check queue mode before auto-enqueuing follow-up parsers
+      const queueMode = db.getSetting("queue_mode") || "auto";
+
       // Check for newly available parsers
       const readyParsers = parserLoader.getReadyParsers(
         inputPath,
@@ -193,8 +199,18 @@ async function main() {
           console.log(
             `🔄 Now ready to run ${readyParser.name} for ${inputPath}`
           );
-          db.upsertParse(fileRecord.id, readyParser.name, "pending");
-          queue.enqueueJob(readyParser.name, inputPath);
+
+          if (queueMode === "approval") {
+            console.log(
+              `📋 Approval mode: ${readyParser.name} waiting for approval`
+            );
+            // Create job as pending_approval - waiting for user approval
+            db.upsertParse(fileRecord.id, readyParser.name, "pending_approval");
+          } else {
+            // Auto mode: enqueue immediately as before
+            db.upsertParse(fileRecord.id, readyParser.name, "pending");
+            queue.enqueueJob(readyParser.name, inputPath);
+          }
         }
       }
     } else {

@@ -55,6 +55,7 @@ Thumbs.db
 # Dropbox folder contents (but keep the folder)
 dropbox/*
 !dropbox/.gitkeep
+_previous/
 
 # Temporary files
 tmp/

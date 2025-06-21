@@ -83,6 +83,8 @@ The system now uses a hybrid approach that separates concerns:
 
 1. **transcribe**: All audio formats → transcript text (handles both small and large files internally)
 2. **summarize**: Transcript → summary using OpenAI GPT-4 Turbo with real-time cost calculation
+3. **convert-video**: Video formats → MP3 audio conversion using FFmpeg
+4. **comprehend-video**: Video formats → shot boundary detection using OpenAI Vision API
 
 **Parser Configuration Records:**
 
@@ -146,7 +148,7 @@ The system now uses a hybrid approach that separates concerns:
 
 **Parser Configuration UI:**
 
-- Dropdown selection of available parser implementations (transcribe, summarize)
+- Dropdown selection of available parser implementations (transcribe, summarize, convert-video, comprehend-video)
 - Form auto-populates with implementation defaults when selected
 - Clear separation between configuration name and implementation choice
 - Validation of dependencies and circular dependency detection
@@ -176,7 +178,16 @@ The system now uses a hybrid approach that separates concerns:
 - Available parsers list is hardcoded in API (Nuxt can't load TS files directly)
 - Database schema changes require manual migration for existing databases
 - Parser configuration validation is basic
-- Deep directory nesting still present (pending Task A: Flatten Directory Structure)
+
+### ✅ Recent Fixes (June 2025)
+
+**Fixed Parser Loading Error:**
+
+- Moved `ParserConfigManager` from `core/processors/` to `core/lib/` directory
+- Issue: ParserLoader was incorrectly trying to load config-manager.ts as a parser
+- Root cause: config-manager.ts was in processors directory but exports a utility class, not a parser
+- Solution: Relocated to appropriate lib directory and updated all import paths
+- Result: Parser loading now works cleanly with 4 parsers (convert-video, summarize, transcribe, comprehend-video)
 
 ### Enhanced File Organization
 
@@ -187,7 +198,55 @@ The system now uses a hybrid approach that separates concerns:
 - Tag-based parser selection (parsers can require specific tags)
 - Automatic tagging based on filename patterns (e.g., `.transcript.` files get `transcript` tag)
 
-**Configuration Examples:**
+**Tag-Based Gating for Video Files ✅ IMPLEMENTED:**
+
+- Video files (.mov, .mp4, etc.) are now cataloged but not auto-processed
+- `convert-video` parser requires "process-video" tag to trigger conversion
+- FileExplorer UI provides 🎬 Video button to add processing tag
+- Clear separation between file cataloging and processing workflow
+- Prevents unwanted automatic transcription of visual-only content
+
+**Implementation Details (December 2024):**
+
+- **Database Configuration**: Modified `convert-video` parser config with `input_tags = ["process-video"]`
+- **UI Integration**: Updated `tagForVideoProcessing()` function in FileExplorer.vue to add "process-video" tag
+- **Workflow Testing**: Verified complete workflow - files cataloged without processing until explicitly tagged
+- **Cost Control**: Prevents unwanted OpenAI API charges for visual-only video content
+- **User Experience**: 🎬 Video button serves as clear trigger for processing approval
+
+**Technical Implementation:**
+
+```sql
+-- Parser configuration update applied:
+UPDATE parser_configs SET input_tags = '["process-video"]' WHERE name = 'convert-video';
+```
+
+```javascript
+// FileExplorer.vue function updated:
+async function tagForVideoProcessing(fileId: number) {
+  await $fetch(`/api/files/${fileId}/tags`, {
+    method: "POST",
+    body: { tag: "process-video", value: "ready" }
+  });
+}
+```
+
+**Verified Workflow:**
+
+1. ✅ Drop .mov file → File cataloged in database (no processing)
+2. ✅ No tags assigned initially → Parser configurations don't match
+3. ✅ Click 🎬 Video button → Adds "process-video" tag
+4. ✅ Tagged file triggers convert-video → normal processing chain begins
+5. ✅ Cost control achieved → User explicit approval required
+
+**Benefits Achieved:**
+
+- **Selective Processing**: Only videos user explicitly approves get processed
+- **Cost Management**: Prevents automatic transcription of visual-only content
+- **Workflow Optimization**: Clear separation between cataloging and processing decisions
+- **Future-Ready**: Prepared for "comprehend-video" processor mentioned by user
+
+### Configuration Examples:
 
 - Extension-based: `.mp3` files → transcribe parser
 - Tag-based: files with `transcript` tag → summarize parser
@@ -227,143 +286,43 @@ The system now uses a hybrid approach that separates concerns:
 - Custom token extraction and Figma plugin development options
 - Hybrid approach combining Style Dictionary with Storybook for comprehensive design system
 
-### **NEW: Batch Approval Processing System**
+### **NEW: Simple Approval Gate System**
 
-**System Architecture:**
+**Replaces Complex Batch System**: Simplified approval workflow for better user control.
 
-The system now supports two queue modes for user-controlled processing:
+**Core Changes:**
 
-- **Auto Mode** (default): Traditional automatic processing when files are detected
-- **Approval Mode**: User-controlled batch approval with cost visualization and selective execution
+- **New "pending_approval" status** added to ParseRecord type
+- **Jobs created but not queued** in approval mode
+- **Simple checkbox interface** replaces complex batch approval UI
+- **Database migration** automatically updates existing databases
 
-**Key Components Implemented:**
+**How it Works:**
 
-1. **Database Schema Extension**: Added `approval_batches`, `predicted_jobs`, and `system_settings` tables
-2. **Prediction Engine**: Uses `ParserConfigManager.predictProcessingChain()` to generate processing chains
-3. **Cost Estimation**: Calculates estimated costs for transcription and summarization jobs
-4. **Batch Management**: Users can create, monitor, and execute approval batches
-5. **Web Interface**: Complete approval page with cost visualization and batch controls
+1. **Approval Mode**: Jobs created as "pending_approval" status, not queued automatically
+2. **Simple UI**: `/approval` page shows list of jobs with checkboxes
+3. **Selective Approval**: User selects jobs and clicks "Approve Selected"
+4. **Automatic Queuing**: Approved jobs change to "pending" and get queued for processing
 
-**Architecture Flow:**
+**API Endpoints:**
 
-1. **Approval Mode Detection**: File watcher checks queue mode before auto-processing
-2. **File Cataloging**: Files are cataloged without processing in approval mode
-3. **Prediction Generation**: System predicts processing chains for all cataloged files
-4. **User Selection**: Web interface allows users to select files and processing steps
-5. **Batch Creation**: Selected items form approval batches with cost calculations
-6. **Batch Execution**: Approved batches create standard queue jobs with `approval_batch_id`
+- `GET /api/pending-approval` - Lists jobs waiting for approval
+- `POST /api/approve-jobs` - Approves selected jobs and queues them
 
-**Technical Implementation:**
+**Benefits:**
 
-- Queue mode stored in `system_settings` table with key `queue_mode`
-- Predicted jobs contain: `predicted_chain`, `estimated_costs`, `dependencies`, `is_valid`
-- Cost calculation integrated with existing OpenAI cost estimation functions
-- WebSocket updates provide real-time batch progress monitoring
+- **Prevents cascade explosions** - User can control which jobs run
+- **Simple interface** - Just checkboxes, no complex batch management
+- **Maintains existing workflow** - Approved jobs process normally
+- **Database compatible** - Automatic migration preserves existing data
 
-## **Critical Issue Fixed: Nuxt Context Parser Loading**
+**User Experience:**
 
-**Problem:** Prediction logic generated empty predicted chains ([]) for all files in Nuxt server context.
+- Drop file → Jobs wait for approval (if in approval mode)
+- Open `/approval` page → See pending jobs with checkboxes
+- Select desired jobs → Click "Approve Selected" → Jobs process
 
-**Root Cause:** Module-level OpenAI client initialization failed in Nuxt server environment due to `OPENAI_API_KEY` not being available during processor imports.
-
-**Error Symptoms:**
-
-- `ERROR [uncaughtException] The OPENAI_API_KEY environment variable is missing or empty`
-- Dynamic parser loading returned 0 parsers (misleading error)
-- Database contained empty `predicted_chain: []` arrays
-- Frontend showed "No files awaiting processing" despite new .mov files
-
-**Solution Implemented:** Lazy OpenAI Client Initialization + Environment Configuration
-
-1. **Lazy Initialization Pattern:**
-
-```typescript
-// OLD: Module-level initialization (failed in Nuxt)
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-// NEW: Lazy initialization (works in all contexts)
-let openaiClient: OpenAI | null = null;
-function getOpenAIClient(): OpenAI {
-  if (!openaiClient) {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
-      throw new Error("OPENAI_API_KEY environment variable is required");
-    }
-    openaiClient = new OpenAI({ apiKey });
-  }
-  return openaiClient;
-}
-```
-
-2. **Nuxt Environment Configuration:**
-
-```typescript
-// nuxt.config.ts - Load root .env file
-import { config } from 'dotenv'
-import { resolve } from 'path'
-config({ path: resolve(__dirname, '../../.env') })
-
-// Add to runtimeConfig
-runtimeConfig: {
-  openaiApiKey: process.env.OPENAI_API_KEY,
-  // ... other config
-}
-```
-
-**Files Modified:**
-
-- `src/processors/transcribe.ts` - Lazy OpenAI client initialization
-- `src/processors/summarize.ts` - Lazy OpenAI client initialization
-- `src/nuxt-web/nuxt.config.ts` - Root .env loading and runtime config
-
-**Technical Details:**
-
-- Processors can now be imported without immediate API key requirement
-- OpenAI client created only when `run()` method is called
-- Nuxt server context can access environment variables from root directory
-- Dynamic TypeScript imports work correctly once environment is available
-- ParserLoader functions as designed - issue was not with dynamic loading
-
-**Key Learning:** What appeared to be a TypeScript dynamic loading issue was actually an environment variable configuration problem. The core prediction logic and ParserLoader were working correctly.
-
-**Testing Status:** Ready for validation - environment fixes should resolve prediction issues completely.
-
-### **Additional Fix: Completed File Filtering**
-
-**Secondary Issue:** After environment fix, all files were showing in approval queue including already completed ones.
-
-**Problem:** `getAllPredictedJobs()` was generating predictions for all files without checking database state for completed processing.
-
-**Solution:** Enhanced prediction logic to respect completed parses:
-
-```typescript
-// Check completed parses before generating predictions
-const existingParses = this.db.getFileParses(file.id);
-const completedParsers = new Set<string>();
-
-for (const parse of existingParses) {
-  if (parse.status === "done") {
-    completedParsers.add(parse.parser);
-  }
-}
-
-// Only predict remaining processing steps
-const predictedChain = this.predictProcessingChainWithCompleted(
-  file.path,
-  fileTags,
-  availableParsers,
-  completedParsers
-);
-```
-
-**Key Changes:**
-
-- Modified `getAllPredictedJobs()` to filter completed files
-- Added `predictProcessingChainWithCompleted()` method
-- Only generate predictions for files with remaining processing steps
-- Invalidate predicted jobs for fully processed files
-
-**Result:** Approval queue now shows only files that actually need processing, respecting the database state of completed work.
+**Status**: Fully implemented and ready for testing.
 
 ### Setup Instructions
 
@@ -393,7 +352,7 @@ const predictedChain = this.predictProcessingChainWithCompleted(
 
 The system uses a hybrid approach bridging hardcoded implementations with database-driven configurations:
 
-- **Implementations**: TypeScript processors in `src/processors/` (transcribe.ts, summarize.ts, convert-video.ts)
+- **Implementations**: TypeScript processors in `src/processors/` (transcribe.ts, summarize.ts, convert-video.ts, comprehend-video.ts)
 - **Configurations**: Database records controlling when and how processors run
 - **Bridge**: ParserConfigManager connects configs to implementations via explicit selection dropdowns
 - **Matching**: Files processed based on extension patterns AND/OR file tags

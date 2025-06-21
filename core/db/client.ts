@@ -26,9 +26,8 @@ export class DatabaseClient {
   }
 
   private initializeSchema() {
-    // Run any necessary migrations first
-    this.runMigrations();
-
+    // Create basic schema without running migrations
+    // Migrations should be run explicitly during system startup
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS files (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,10 +41,11 @@ export class DatabaseClient {
       CREATE TABLE IF NOT EXISTS parses (
         file_id INTEGER NOT NULL,
         parser TEXT NOT NULL,
-        status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'done', 'failed')),
+        status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'done', 'failed', 'pending_approval')),
         output_path TEXT,
         updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
         error TEXT,
+        approval_batch_id INTEGER REFERENCES approval_batches(id),
         PRIMARY KEY (file_id, parser),
         FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
       );
@@ -155,6 +155,12 @@ export class DatabaseClient {
     `);
   }
 
+  // NEW: Explicit migration method to be called only during system startup
+  runMigrationsIfNeeded(): void {
+    console.log("🔧 Checking for database migrations...");
+    this.runMigrations();
+  }
+
   private runMigrations() {
     // Check if we need to add allow_derived_files column to parser_configs table
     try {
@@ -191,6 +197,57 @@ export class DatabaseClient {
         ADD COLUMN approval_batch_id INTEGER REFERENCES approval_batches(id)
       `);
       console.log("✅ Migration completed successfully");
+    }
+
+    // Check if we need to update the status constraint to include pending_approval
+    try {
+      // Check if the table constraint already includes pending_approval by examining the schema
+      const tableInfoStmt = this.db.prepare(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='parses'"
+      );
+      const tableInfo = tableInfoStmt.get() as any;
+
+      if (
+        tableInfo &&
+        tableInfo.sql &&
+        !tableInfo.sql.includes("'pending_approval'")
+      ) {
+        // Status constraint doesn't include pending_approval, need to recreate table
+        console.log(
+          "🔄 Running database migration: updating parses status constraint..."
+        );
+
+        // Create new parses table with updated constraint
+        this.db.exec(`
+          CREATE TABLE IF NOT EXISTS parses_new (
+            file_id INTEGER NOT NULL,
+            parser TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (status IN ('pending', 'processing', 'done', 'failed', 'pending_approval')),
+            output_path TEXT,
+            updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
+            error TEXT,
+            approval_batch_id INTEGER REFERENCES approval_batches(id),
+            PRIMARY KEY (file_id, parser),
+            FOREIGN KEY (file_id) REFERENCES files (id) ON DELETE CASCADE
+          );
+
+          INSERT INTO parses_new SELECT * FROM parses;
+          DROP TABLE parses;
+          ALTER TABLE parses_new RENAME TO parses;
+
+          CREATE INDEX IF NOT EXISTS idx_parses_status ON parses (status);
+          CREATE INDEX IF NOT EXISTS idx_parses_output_path ON parses (output_path);
+        `);
+        console.log("✅ Migration completed successfully");
+      } else {
+        console.log("✅ Status constraint already includes pending_approval");
+      }
+    } catch (error) {
+      // Migration failed, but continue - the table might already be correct
+      console.log(
+        "⚠️ Status constraint migration skipped (table may already be updated):",
+        error
+      );
     }
   }
 
@@ -312,6 +369,42 @@ export class DatabaseClient {
     }));
   }
 
+  // NEW: Get jobs waiting for approval
+  getPendingApprovalParses(): ParseRecord[] {
+    const stmt = this.db.prepare(
+      "SELECT * FROM parses WHERE status = 'pending_approval'"
+    );
+    const results = stmt.all() as any[];
+    return results.map((result) => ({
+      fileId: result.file_id,
+      parser: result.parser,
+      status: result.status,
+      outputPath: result.output_path,
+      updatedAt: result.updated_at,
+      error: result.error,
+      approvalBatchId: result.approval_batch_id,
+    }));
+  }
+
+  // NEW: Approve jobs by changing status from pending_approval to pending
+  approveParses(fileId: number, parsers: string[]): number {
+    const stmt = this.db.prepare(`
+      UPDATE parses
+      SET status = 'pending', updated_at = unixepoch()
+      WHERE file_id = ? AND parser = ? AND status = 'pending_approval'
+    `);
+
+    let approvedCount = 0;
+    for (const parser of parsers) {
+      const result = stmt.run(fileId, parser);
+      if (result.changes > 0) {
+        approvedCount++;
+      }
+    }
+
+    return approvedCount;
+  }
+
   getFileParses(fileId: number): ParseRecord[] {
     const stmt = this.db.prepare("SELECT * FROM parses WHERE file_id = ?");
     const results = stmt.all(fileId) as any[];
@@ -326,14 +419,38 @@ export class DatabaseClient {
     }));
   }
 
-  markParsesAsPendingByOutputPath(outputPath: string): ParseRecord[] {
+  // NEW: Get all completed parses for building file chains
+  getAllCompletedParses(): Array<{
+    fileId: number;
+    parser: string;
+    outputPath: string;
+  }> {
+    const stmt = this.db.prepare(`
+      SELECT file_id, parser, output_path
+      FROM parses
+      WHERE output_path IS NOT NULL AND status = 'done'
+    `);
+    const results = stmt.all() as any[];
+    return results.map((result) => ({
+      fileId: result.file_id,
+      parser: result.parser,
+      outputPath: result.output_path,
+    }));
+  }
+
+  markParsesForRequeuing(
+    outputPath: string,
+    queueMode: "auto" | "approval"
+  ): ParseRecord[] {
+    const newStatus = queueMode === "approval" ? "pending_approval" : "pending";
+
     const stmt = this.db.prepare(`
       UPDATE parses
-      SET status = 'pending', output_path = NULL, updated_at = unixepoch()
+      SET status = ?, output_path = NULL, updated_at = unixepoch()
       WHERE output_path = ?
       RETURNING *
     `);
-    const results = stmt.all(outputPath) as any[];
+    const results = stmt.all(newStatus, outputPath) as any[];
     return results.map((result) => ({
       fileId: result.file_id,
       parser: result.parser,
