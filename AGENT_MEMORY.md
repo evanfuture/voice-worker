@@ -1,538 +1,673 @@
-# Agent Memory
-
-## Project: File Monitoring & Parsing System
-
-### Overview
-
-TypeScript-based file monitoring system that:
-
-- Watches a dropbox folder for files
-- Catalogs files with metadata in SQLite
-- Runs configurable parsers on files (transcription, summarization, etc.)
-- Manages a job queue with pause/resume controls
-- Handles file deletions by re-queuing dependent jobs
-- Outputs parser results as new files alongside inputs
-- **Provides modern Nuxt 3 web interface for queue control and cost management**
-- **Uses hybrid parser system: hardcoded implementations + database configurations**
-- **Includes comprehensive design system with Figma synchronization capabilities**
-
-### Tech Stack
-
-- TypeScript + Node.js (no Python)
-- chokidar for file watching
-- BullMQ + Redis for job queue
-- better-sqlite3 for metadata storage
-- Dynamic parser loading system
-- FFmpeg for audio processing
-- **Nuxt 3 + Vue.js for modern web interface**
-- **WebSocket support via Nuxt experimental features**
-- **VueUse composables for reactive state management**
-- **Style Dictionary for design token management and Figma sync**
-
-### Architecture
-
-- Pluggable parser interface
-- Self-healing deletion recovery (CONFIRMED WORKING)
-- Multi-stage processing support
-- CLI controls for queue management
-- Audio chunking for large files before transcription
-- **Real-time web interface with cost controls (migrated to Nuxt 3)**
-- **Hybrid parser configuration system bridging implementations with database configs**
-
-### Current Transcription Workflow (June 2025)
-
-**Unified transcribe processor handles all audio/video files with OpenAI Whisper:**
-
-- Small files (≤10MB): Direct OpenAI Whisper-1 API transcription
-- Large files (>10MB): Internal chunking → transcribe chunks with OpenAI → merge → cleanup temp files
-- Always outputs: `audio.mp3` → `audio.mp3.transcript.txt`
-- Chunking is internal implementation detail, invisible to user
-- Automatic temp file cleanup with proper ES module imports
-- Real transcription with timestamps, segments, and duration information
-- **Intelligent multi-stream audio handling**: Automatically detects and mixes multiple audio streams from video files (e.g., OBS recordings with webcam, microphone, system audio)
-
-**Key Implementation Details:**
-
-- Uses FFmpeg for audio segmentation (5-minute chunks)
-- Creates timestamped temp directories in `tmp/transcribe-{timestamp}/`
-- OpenAI Whisper-1 API with verbose_json response format for detailed output
-- Uses `toFile` helper from `openai/uploads` for proper audio file handling
-- Environment variables loaded with dotenv (.env file)
-- Error recovery continues with other chunks if one fails, includes fallback error reporting
-- Uses `rmSync()` with recursive cleanup (not deprecated `require()`)
-
-### Database Schema & Field Mapping
-
-**Critical: Database uses snake_case, TypeScript uses camelCase**
-
-- Database client includes proper field mapping in all methods
-- `file_id` → `fileId`, `output_path` → `outputPath`, etc.
-- All database methods convert field names to match TypeScript interfaces
-
-### Hybrid Parser Configuration System
-
-**Architecture Overview:**
-
-The system now uses a hybrid approach that separates concerns:
-
-- **Parser Implementations** (`src/processors/*.ts`): Contain the actual `run()` functions and logic
-- **Parser Configurations** (Database): Control WHEN to run parsers and WHICH implementation to use
-- **Bridge System** (`ParserConfigManager`): Connects configurations to implementations
-
-**Parser Implementation Files:**
-
-1. **transcribe**: All audio formats → transcript text (handles both small and large files internally)
-2. **summarize**: Transcript → summary using OpenAI GPT-4 Turbo with real-time cost calculation
-3. **convert-video**: Video formats → MP3 audio conversion using FFmpeg
-4. **comprehend-video**: Video formats → shot boundary detection using OpenAI Vision API
-
-**Parser Configuration Records:**
-
-- Each config specifies: input extensions, required tags, output format, dependencies
-- Links to parser implementation via `parser_implementation` field
-- Can have multiple configs using the same implementation with different triggers
-- Supports user-selectable execution for manual file processing
-- **NEW: allowDerivedFiles flag controls whether parser can process outputs from other parsers**
-- **NEW: Delete functionality available in UI for removing parser configurations**
-
-**Example Configuration Scenarios:**
-
-- "auto-summarize-transcripts" → uses `summarize` implementation, triggered by `.txt` + `transcript` tag
-- "manual-summarize-selected" → uses `summarize` implementation, only when user selects files
-- "meeting-transcripts" → uses `transcribe` implementation, triggered by files with `meeting` tag
-
-**File Processing Flow:**
-
-1. File detected by watcher
-2. Auto-tagged based on filename patterns (e.g., `.transcript.` → gets `transcript` tag)
-3. System queries database for applicable parser configurations
-4. Matches configurations based on file extension AND tags AND derived file permissions
-5. Links configurations to parser implementations via `parser_implementation` field
-6. Executes matched parsers with proper dependency ordering
-
-**Key Technical Fixes (June 2025):**
-
-- **Fixed compound extension matching**: `getFileExtension` method now properly recognizes `.transcript.txt`, `.summary.txt` etc.
-- **Added derived file control**: Parser configurations can now specify whether they accept derived/generated files
-- **Enhanced UI**: Parser configuration management includes delete functionality and derived file controls
-- **Real AI Summarization**: Updated summarize parser to use OpenAI GPT-4 Turbo with professional prompting
-- **Comprehensive Cost Tracking**: Extended job queue to calculate and track costs for both transcription (Whisper) and summarization (GPT-4) operations
-- **Enhanced Dashboard**: Cost summary now shows both transcription and summarization job costs with token-level detail
-
-### Modern Nuxt 3 Web Interface
-
-**Three-Page Navigation Structure:**
-
-- **Dashboard** (`/`): Queue status, job management, cost controls
-- **Files & Tags** (`/files`): File listing, tagging, metadata management
-- **Parser Configuration** (`/parsers`): Parser config creation and management
-
-**Key Features:**
-
-- Real-time queue status monitoring via WebSocket
-- Pause/Resume queue controls for cost management
-- File tagging and metadata management interface
-- Parser configuration creation with implementation selection
-- Cost estimation and display for transcription jobs
-- Warning alerts when queue is paused with waiting high-cost jobs
-
-**API Endpoints (Nitro):**
-
-- `GET /api/status` - Queue status and pause state
-- `GET /api/jobs` - List all jobs with status
-- `GET /api/files-with-metadata` - Files with tags and metadata
-- `GET /api/parser-configs` - Parser configurations with validation
-- `GET /api/available-parsers` - Available parser implementations
-- `POST /api/parser-configs` - Create/update parser configurations
-- `POST/DELETE /api/files/:id/tags` - Tag management
-
-**Parser Configuration UI:**
-
-- Dropdown selection of available parser implementations (transcribe, summarize, convert-video, comprehend-video)
-- Form auto-populates with implementation defaults when selected
-- Clear separation between configuration name and implementation choice
-- Validation of dependencies and circular dependency detection
-
-### System Status
-
-✅ **Complete and working:**
-
-- File monitoring system with chokidar
-- SQLite database with proper field mapping
-- BullMQ job queue with Redis
-- Unified transcription workflow for all file sizes
-- Deletion recovery system
-- Modern Nuxt 3 web interface with Vue.js and WebSocket support
-- Real OpenAI Whisper-1 API integration with detailed transcription output
-- Generic cost calculation system for LLM services
-- **Hybrid parser configuration system with database storage**
-- **File metadata and tagging system**
-- **Parser configuration UI with implementation selection**
-- **Bridge between hardcoded parsers and database configurations**
-- **Complete design system integration with Figma synchronization**
-- **Codebase consolidation: 5 of 6 priority tasks completed**
-
-📋 **Current limitations:**
-
-- Parser implementations must be hardcoded in TypeScript files
-- Available parsers list is hardcoded in API (Nuxt can't load TS files directly)
-- Database schema changes require manual migration for existing databases
-- Parser configuration validation is basic
-
-### ✅ Recent Fixes (June 2025)
-
-**Fixed Parser Loading Error:**
-
-- Moved `ParserConfigManager` from `core/processors/` to `core/lib/` directory
-- Issue: ParserLoader was incorrectly trying to load config-manager.ts as a parser
-- Root cause: config-manager.ts was in processors directory but exports a utility class, not a parser
-- Solution: Relocated to appropriate lib directory and updated all import paths
-- Result: Parser loading now works cleanly with 4 parsers (convert-video, summarize, transcribe, comprehend-video)
-
-### Enhanced File Organization
-
-**Beyond File Extensions:**
-
-- Files can have multiple tags with optional values (e.g., "priority:high")
-- Custom metadata fields with typed values (string, number, boolean, json)
-- Tag-based parser selection (parsers can require specific tags)
-- Automatic tagging based on filename patterns (e.g., `.transcript.` files get `transcript` tag)
-
-**Tag-Based Gating for Video Files ✅ IMPLEMENTED:**
-
-- Video files (.mov, .mp4, etc.) are now cataloged but not auto-processed
-- `convert-video` parser requires "process-video" tag to trigger conversion
-- FileExplorer UI provides 🎬 Video button to add processing tag
-- Clear separation between file cataloging and processing workflow
-- Prevents unwanted automatic transcription of visual-only content
-
-**Implementation Details (December 2024):**
-
-- **Database Configuration**: Modified `convert-video` parser config with `input_tags = ["process-video"]`
-- **UI Integration**: Updated `tagForVideoProcessing()` function in FileExplorer.vue to add "process-video" tag
-- **Workflow Testing**: Verified complete workflow - files cataloged without processing until explicitly tagged
-- **Cost Control**: Prevents unwanted OpenAI API charges for visual-only video content
-- **User Experience**: 🎬 Video button serves as clear trigger for processing approval
-
-**Technical Implementation:**
-
-```sql
--- Parser configuration update applied:
-UPDATE parser_configs SET input_tags = '["process-video"]' WHERE name = 'convert-video';
-```
-
-```javascript
-// FileExplorer.vue function updated:
-async function tagForVideoProcessing(fileId: number) {
-  await $fetch(`/api/files/${fileId}/tags`, {
-    method: "POST",
-    body: { tag: "process-video", value: "ready" }
-  });
-}
-```
-
-**Verified Workflow:**
-
-1. ✅ Drop .mov file → File cataloged in database (no processing)
-2. ✅ No tags assigned initially → Parser configurations don't match
-3. ✅ Click 🎬 Video button → Adds "process-video" tag
-4. ✅ Tagged file triggers convert-video → normal processing chain begins
-5. ✅ Cost control achieved → User explicit approval required
-
-**Benefits Achieved:**
-
-- **Selective Processing**: Only videos user explicitly approves get processed
-- **Cost Management**: Prevents automatic transcription of visual-only content
-- **Workflow Optimization**: Clear separation between cataloging and processing decisions
-- **Future-Ready**: Prepared for "comprehend-video" processor mentioned by user
-
-### Configuration Examples:
-
-- Extension-based: `.mp3` files → transcribe parser
-- Tag-based: files with `transcript` tag → summarize parser
-- Hybrid: `.txt` files with `meeting` tag → specialized meeting summary parser
-
-### **NEW: Design System & Figma Synchronization**
-
-**Complete design system implementation for maintaining consistency between code and design:**
-
-- **Design Tokens**: JSON-based single source of truth for colors, typography, spacing, shadows
-- **Multi-format Generation**: CSS variables, SCSS, JavaScript/TypeScript, and Figma-compatible JSON
-- **Style Dictionary Pipeline**: Automated token transformation and distribution
-- **Figma Integration**: Direct sync via Figma Tokens plugin with automated GitHub Actions workflow
-- **Token Extraction**: Automated analysis of existing Vue components to discover design tokens
-- **Comprehensive Documentation**: Setup guides, usage examples, and troubleshooting
-
-**Technical Implementation:**
-
-- `src/design-system/tokens.json`: Master design token definitions
-- `src/design-system/style-dictionary.config.js`: Build configuration for multiple output formats
-- `src/design-system/extract-tokens.js`: Automated token extraction from Vue components
-- `.github/workflows/design-tokens.yml`: CI/CD pipeline for automated token building and distribution
-- Generated outputs: CSS custom properties, SCSS variables, JS/TS modules, Figma-compatible JSON
-
-**Workflow Integration:**
-
-1. Developer updates design tokens in JSON
-2. GitHub Actions automatically builds all output formats
-3. CSS variables available immediately in Nuxt application
-4. Figma-compatible JSON downloadable from CI artifacts
-5. Designer imports tokens into Figma via Figma Tokens plugin
-6. Perfect synchronization between code implementation and design files
-
-**Alternative Approaches Documented:**
-
-- Storybook + component documentation approach for visual design system
-- Custom token extraction and Figma plugin development options
-- Hybrid approach combining Style Dictionary with Storybook for comprehensive design system
-
-### **NEW: Simple Approval Gate System**
-
-**Replaces Complex Batch System**: Simplified approval workflow for better user control.
-
-**Core Changes:**
-
-- **New "pending_approval" status** added to ParseRecord type
-- **Jobs created but not queued** in approval mode
-- **Simple checkbox interface** replaces complex batch approval UI
-- **Database migration** automatically updates existing databases
-
-**How it Works:**
-
-1. **Approval Mode**: Jobs created as "pending_approval" status, not queued automatically
-2. **Simple UI**: `/approval` page shows list of jobs with checkboxes
-3. **Selective Approval**: User selects jobs and clicks "Approve Selected"
-4. **Automatic Queuing**: Approved jobs change to "pending" and get queued for processing
-
-**API Endpoints:**
-
-- `GET /api/pending-approval` - Lists jobs waiting for approval
-- `POST /api/approve-jobs` - Approves selected jobs and queues them
-
-**Benefits:**
-
-- **Prevents cascade explosions** - User can control which jobs run
-- **Simple interface** - Just checkboxes, no complex batch management
-- **Maintains existing workflow** - Approved jobs process normally
-- **Database compatible** - Automatic migration preserves existing data
-
-**User Experience:**
-
-- Drop file → Jobs wait for approval (if in approval mode)
-- Open `/approval` page → See pending jobs with checkboxes
-- Select desired jobs → Click "Approve Selected" → Jobs process
-
-**Status**: Fully implemented and ready for testing.
-
-### Setup Instructions
-
-1. Install dependencies: `npm install`
-2. Create .env file with your OpenAI API key: `OPENAI_API_KEY=your_key_here`
-3. Ensure FFmpeg is installed and available in PATH
-4. Start Redis: `docker run -d -p 6379:6379 redis:alpine`
-5. Run system: `npm run dev`
-6. Run web interface: `cd src/nuxt-web && npm run dev`
-7. Open browser: `http://localhost:3000`
-8. Drop audio files in ./dropbox folder
-9. Use web interface to manage queue, files, and parser configurations
-
-# Agent Memory - Voice Worker System
-
-## Current System Architecture (As of June 2025)
-
-### Core Components
-
-- **File Monitoring**: TypeScript + chokidar file watcher with intelligent derivative file detection
-- **Database**: SQLite with structured schema for files, parses, parser_configs, file_tags, file_metadata
-- **Queue System**: BullMQ with Redis for job management
-- **Web Interface**: Nuxt 3 application with real-time WebSocket updates
-- **Processing**: OpenAI Whisper transcription, GPT-4 summarization, FFmpeg video conversion
-
-### Parser Configuration System
-
-The system uses a hybrid approach bridging hardcoded implementations with database-driven configurations:
-
-- **Implementations**: TypeScript processors in `src/processors/` (transcribe.ts, summarize.ts, convert-video.ts, comprehend-video.ts)
-- **Configurations**: Database records controlling when and how processors run
-- **Bridge**: ParserConfigManager connects configs to implementations via explicit selection dropdowns
-- **Matching**: Files processed based on extension patterns AND/OR file tags
-- **Dependencies**: Parser configs can depend on other parsers completing first
-
-### Batch Approval System (Complete Implementation)
-
-**Database Schema Extensions:**
-
-- `approval_batches` table: Tracks user approval sessions with selections and costs
-- `predicted_jobs` table: Stores job chain predictions with cost estimates
-- `system_settings` table: Global configuration including queue mode (auto/approval)
-- Extended `parses` table: Added `approval_batch_id` foreign key for batch tracking
-- Automatic migration system for existing databases
-
-**Job Chain Prediction Engine:**
-
-- Analyzes files to predict complete processing chains (.mov → .mp3 → .transcript.txt → .summary.txt)
-- Calculates accurate costs for entire processing pipelines
-- Integrates with existing ParserConfigManager for dependency resolution
-- Updates predictions when new files are detected in approval mode
-
-**API Endpoints:**
-
-- `GET /api/predicted-jobs`: Returns files with processing chain predictions and costs
-- `POST /api/approval-batches`: Creates approval batches from user selections
-- `GET /api/approval-batches`: Lists all approval batches
-- `GET /api/approval-batches/[id]/status`: Tracks batch progress with job counts
-- `POST /api/approval-batches/[id]/execute`: Executes approved batches
-- `GET/POST /api/queue-mode`: Manages queue mode switching
-
-**Web Interface:**
-
-- New `/approval` page with interactive batch selection interface
-- Cost visualization showing individual step costs and total batch costs
-- File selection with processing chain display and step-by-step approval
-- Real-time progress tracking for active batches
-- Queue mode switching controls (auto/approval)
-- Integration with existing navigation and WebSocket updates
-
-**Queue Integration:**
-
-- File watcher respects queue mode: catalogs files but doesn't auto-process in approval mode
-- Batch execution creates jobs with approval_batch_id for tracking
-- Selective job execution based on user selections
-- Progress monitoring linked to approval batches
-
-### Key Features
-
-**Cost Management:**
-
-- Real-time cost calculation for transcription and summarization
-- Batch cost estimation before approval
-- Historical cost tracking for completed batches
-
-**File Processing Chains:**
-
-- Automatic video conversion (.mov/.mp4 → .mp3)
-- Audio transcription with Whisper API
-- Text summarization with GPT-4 Turbo
-- Intelligent derivative file handling prevents processing loops
-
-**User Control:**
-
-- Queue mode switching: auto-processing vs. approval-based
-- Selective job approval with cost visibility
-- Progress monitoring for batch execution
-- File organization with tagging system
-
-### Recent Completions (June 2025)
-
-1. **Batch Approval System**: Complete end-to-end implementation allowing users to review predicted processing chains with costs before approving selective execution
-
-2. **Database Infrastructure**: Extended schema with proper foreign key relationships and automatic migration system
-
-3. **Web Interface Enhancement**: Added approval page with modern UI for batch management and cost visualization
-
-4. **Queue Mode Management**: Database-driven mode switching between automatic and approval-based processing
-
-5. **Agentic System Foundation**: Externalized prompts system with file monitoring and agent-friendly editing APIs
-
-### **NEW: Agentic System - Phase 1 Complete ✅**
-
-**Prompt File Management System:**
-
-- **PromptWatcher**: Monitors `prompts/` directory with chokidar for real-time file change detection
-- **Parser Configuration Integration**: Detects which parsers reference changed prompts and logs impact
-- **System Integration**: Fully integrated into main startup/shutdown process alongside FileWatcher
-
-**Agent-Friendly APIs:**
-
-- **GET /api/prompts**: Lists all prompt files with metadata (size, lines, last modified, preview)
-- **GET /api/prompts/{filename}**: Returns prompt content with line numbers for precise editing
-- **POST /api/prompts/{filename}/edit**: Line-based editing (insert/replace/delete operations)
-- **POST /api/prompts/{filename}**: Full file replacement with atomic writes
-- **Security**: Path traversal protection, file type validation, atomic operations
-
-**Architecture Benefits:**
-
-- **Event-Driven**: Prompt changes trigger system notifications and audit logging
-- **Agent-Optimized**: Line-based editing prevents copy/edit/paste errors in tool calls
-- **Audit Trail**: All prompt changes logged with parser configuration impact analysis
-- **Safe Operations**: Atomic edits with validation prevent file corruption
-- **Extensible**: Callback system allows future enhancements (caching, validation, etc.)
-
-### Configuration Files
-
-- `.env`: OpenAI API key configuration
-- `package.json`: Dependencies and scripts
-- Database: `./voice-worker.db` (auto-created)
-- File monitoring: `./dropbox/` directory
-
-### Current Status
-
-The system is fully functional with both automatic and approval-based processing modes. Users can:
-
-1. Switch between auto and approval modes via web interface
-2. View predicted processing chains with accurate cost estimates
-3. Selectively approve jobs for execution in batches
-4. Monitor real-time progress of approved batches
-5. Manage files and parser configurations through web interface
-
-The 3 movie files mentioned by the user are ready for testing the batch approval workflow.
-
-### Recent Bug Fixes (June 2025)
-
-**Critical Database Path Issue Fixed:**
-
-- **Problem**: Different Nuxt API endpoints were using inconsistent database paths (`"../../data.db"` vs `"../../../../../data.db"`)
-- **Impact**: This caused multiple separate database files to be created, leading to "no such table: parser_configs" errors
-- **Solution**: All endpoints now consistently use `config.dbPath` from Nuxt runtime configuration
-- **Fixed Endpoints**: approval-batches, queue-mode, predicted-jobs, and their nested routes
-- **Configuration**: Database path is set in `nuxt.config.ts` as `process.env.DB_PATH || "../../data.db"`
-
-**TypeScript Loading Issue in ParserLoader Fixed:**
-
-- **Problem**: ParserLoader tried to load `.ts` files directly in Nuxt runtime environment, causing "Unknown file extension .ts" errors
-- **Impact**: Dynamic parser loading failed, falling back to hardcoded imports (Option C)
-- **Solution**: Modified ParserLoader to prioritize `.js` files over `.ts` files in runtime environments
-- **Graceful Handling**: Added specific error handling for TypeScript loading failures with informative warnings
-- **Fallback Mechanism**: System designed with "Option C: Direct parser imports" fallback that works when dynamic loading fails
-
-**Job Failure Handling and Error Visibility System:**
-
-- **Problem**: Job failures in BullMQ queue weren't synchronized to database, leaving users unaware of processing errors
-- **Impact**: Failed transcriptions (e.g., unsupported file formats) appeared to succeed but never completed
-- **Solution**: Added comprehensive failure handling system:
-  - Job failure handler in worker updates database parse records with error messages
-  - New API endpoints (`/api/failed-jobs`, `/api/retry-failed`) for managing failures
-  - Failed jobs section in web interface with prominent error display
-  - **Elegant Retry Mechanism**: Instead of complex re-queuing, simply delete output file and let file watcher auto-reprocess
-- **Design Insight**: Retry by deletion leverages existing deletion recovery system for consistency and simplicity
-
-### **Codebase Consolidation & Refactoring (Partial)**
-
-**Architectural consolidation work completed in June 2025:**
-
-**Completed Tasks:**
-
-- **Eliminated Redundant Web Interfaces** - Removed standalone Express server, consolidated to Nuxt 3 application
-- **Simplified Design System Integration** - Moved design tokens into Nuxt project, streamlined pipeline
-- **Consolidated Script Organization** - Created organized script structure with unified command interface
-- **Resolved Parser/Processor Naming (Frontend Only)** - Updated user-facing interfaces to use "processor" terminology consistently
-- **Consolidated Database/Queue Clients** - Created unified service layer with health checking
-
-**Deferred Tasks (Significant Work Remaining):**
-
-- **Complete Backend Terminology Alignment** - Core system still uses "parser" terminology in database schema, TypeScript interfaces, and class names
-- **Directory Structure Flattening** - Deep nesting remains (`src/nuxt-web/server/api/...`)
-
-**Current State:**
-
-- Frontend consistently uses "processor" terminology
-- Backend maintains "parser" terminology (hybrid approach to avoid database migrations)
-- Single web interface with modern UI
-- Unified command structure via centralized scripts
-- Some architectural inconsistencies remain but system is functional
-
-**Next Priority Tasks Defined:**
-
-- Task A: Complete backend terminology alignment (high complexity, database migrations required)
-- Task B: Flatten directory structure (high complexity, affects all import paths)
-- Task C: Clean up remaining design-system package artifacts (low complexity)
+<conversation_history>
+╭───────────────────────────────────────────────────────────────╮
+│ > > Describe the main pieces of this system's architecture. │
+╰───────────────────────────────────────────────────────────────╯
+
+✦ Based on the file structure, this appears to be a sophisticated, asynchronous file-processing system
+with a web-based management UI. Here's a breakdown of its main architectural components:
+
+1. Web Interface & API (The web/ directory)
+
+This is a full-stack web application, likely built with Nuxt.js (a Vue.js framework), that serves as
+the primary control panel for the system.
+
+- Frontend (`web/pages`, `web/components`): A rich user interface that allows users to:
+  - View and manage files (files.vue).
+  - Monitor the status of processing jobs (jobs.get.ts, status.get.ts).
+  - See cost summaries, likely for external API usage (cost-summary.get.ts).
+  - Manually approve or reject completed jobs (approval.vue, approve-jobs.post.ts).
+  - Configure and manage the available processors (processors.vue, processor-configs.\*.ts).
+- Backend API (`web/server/api`): A comprehensive RESTful API built into the Nuxt.js server. It acts
+  as the bridge between the user-facing frontend and the core processing engine.
+- Real-time Communication (`web/server/routes/_ws.ts`): The presence of a WebSocket file (\_ws.ts)
+  indicates that the frontend receives real-time updates from the backend, likely for pushing live
+  job status changes without needing to refresh the page.
+
+2. Core Processing Engine (The core/ directory)
+
+This is the heart of the system, responsible for the actual data processing. It's designed to run
+independently and asynchronously.
+
+- Asynchronous Job Queue (`core/queue/client.ts`): This is a critical architectural pattern. When a
+  new task is created (like processing a new file), it's not handled immediately. Instead, it's added
+  to a queue. This allows the system to manage long-running tasks efficiently, retry failed jobs, and
+  not get overwhelmed by sudden bursts of work.
+- File Watcher (`core/watcher/client.ts`): This component likely monitors a specific directory
+  (perhaps dropbox/) for new files. When a file appears, it triggers the entire processing pipeline
+  by adding a new job to the queue.
+- Modular Processors (`core/processors/`): The actual work is broken down into a series of distinct,
+  chainable steps. The filenames suggest a workflow like this:
+  1.  convert-video: Prepares a video file.
+  2.  transcribe: Converts the video's audio to text.
+  3.  comprehend-video: Performs some form of analysis on the video content.
+  4.  summarize: Uses a prompt from the prompts/ directory to create a text summary.
+- Service Layer (`core/lib/service-layer.ts`): This abstracts the business logic, making the system
+  more maintainable and testable by separating concerns.
+
+3. Supporting Components
+
+- Database (`core/db/client.ts`): The system uses a database to persist state. This would include
+  information about files, the status of each processing job, job chains, metadata, and processor
+  configurations.
+- Command-Line Interface (`cli/index.ts`): A CLI provides a way for developers or administrators to
+  interact with, manage, or debug the system from the command line, bypassing the web UI.
+- Cost Calculation (`core/utils/cost-calculator.ts`): A dedicated utility for calculating the cost of
+  operations. This is crucial if the processors rely on pay-per-use external AI services (like
+  transcription or summarization APIs).
+
+Overall Workflow
+
+1.  A user or an automated process places a file into a monitored directory (e.g., dropbox/).
+2.  The File Watcher detects the new file and adds a job (or a chain of jobs) to the Job Queue.
+3.  The Core Processing Engine picks up the job from the queue.
+4.  It executes the required Processors in sequence (e.g., Convert -> Transcribe -> Summarize).
+5.  The status and results of each step are saved to the Database.
+6.  The Web UI reads data from the database via its API and displays the progress in real-time to the
+    user using WebSockets.
+7.  The user can then view the results, see the costs, and perform management actions like approving
+    the final output.
+
+╭─────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ > Where are points of confusion around functionality, where does it seem like bugs are likely to │
+│ emerge? │
+╰─────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ Excellent question. Based on the architecture, here are the primary areas where functionality is
+ambiguous and where bugs are most likely to surface.
+
+Points of Confusion Around Functionality
+
+These are areas where the intent and mechanism of the system are not fully clear from the file
+structure alone.
+
+1.  Job Chaining and Configuration:
+
+    - The Ambiguity: The system clearly has a concept of "processors" (core/processors/) and
+      "processor configurations" (web/server/api/processor-configs.\*.ts). However, it's not clear how
+      these processors are chained together for a given file. Is there a default, hardcoded pipeline
+      (e.g., convert -> transcribe -> summarize)? Or can a user define custom pipelines through the UI
+      (processors.vue)? The existence of files-with-chains.get.ts suggests the latter, but the
+      mechanism for creating and assigning these chains is a major unknown.
+
+2.  The "Approval" Workflow:
+
+    - The Ambiguity: The API has multiple endpoints related to approvals (pending-approval.get.ts,
+      approve-jobs.post.ts, approval-batches.\*.ts). What exactly is being approved?
+      - Is it the final, summarized text?
+      - Is it the cost? The predicted-jobs.get.ts endpoint is highly suggestive. It could mean the
+        system runs a cheap pre-analysis, predicts the cost of the full job, and then waits for
+        user approval before proceeding with the expensive work. This is a sophisticated and
+        important workflow, but its exact trigger and behavior are unclear.
+
+3.  How are Jobs Initiated?
+
+    - The Ambiguity: The core/watcher/client.ts strongly implies a "hot folder" (dropbox/) workflow.
+      Is this the only way to add files? There are no obvious API endpoints in web/server/api/ for
+      file uploads. This is a significant functional gap. If the only method is the hot folder, the
+      UI is purely for monitoring, not for initiating work.
+
+4.  The Role of "Parsers":
+    - The Ambiguity: The web UI has a parsers.vue page, but there's no corresponding concept in the
+      core/ processing engine. What are these parsers? Are they related to how files are initially
+      read before being put into the queue? Are they a separate, unrelated feature? Their function is
+      an open question.
+
+Likely Bug Hotspots
+
+These are architecturally sensitive areas where issues commonly arise in systems of this complexity.
+
+1.  State Management and Race Conditions:
+
+    - The Hotspot: The entire asynchronous flow is ripe for state-related bugs. The system's state is
+      distributed across the file system (dropbox/), the queue, and the database.
+    - Potential Bugs:
+      - File Watcher Conflicts: What happens if a file in dropbox/ is modified while it's being
+        processed? The watcher might ignore it, or it might create a duplicate job, leading to
+        wasted resources and confusing results.
+      - Database Contention: If two different processes (e.g., the summarize processor and a user
+        action from the UI) try to update the same job record in the database simultaneously, it
+        could lead to data corruption unless there are proper database transactions or optimistic
+        locking in place.
+      - UI/Backend Desynchronization: The UI gets real-time updates via WebSockets (\_ws.ts), but if
+        that connection fails, the user might see stale data and perform actions (like retrying a
+        job) that are no longer valid.
+
+2.  Error Handling in Chained Jobs:
+
+    - The Hotspot: A multi-step processing chain (convert -> transcribe -> summarize) is a complex
+      failure domain.
+    - Potential Bugs:
+      - Partial Success: If transcribe succeeds but summarize fails, what is the overall status of
+        the job? The system needs a clear, robust way to represent and handle this state. The
+        retry-failed.post.ts endpoint is good, but does it retry the entire chain or just the
+        failed step? Retrying the whole chain could be expensive and unnecessary.
+      - Poison Pills: A malformed file or a persistent external API failure could create a job that
+        always fails. If the retry logic is too aggressive, this "poison pill" job could get stuck
+        in a loop, consuming queue resources indefinitely.
+
+3.  Configuration Mismatches:
+
+    - The Hotspot: The system's logic is split between the core engine and the web UI, with
+      configuration stored in the database. This creates opportunities for a mismatch.
+    - Potential Bugs: A user might be able to create a "processor configuration" via the UI that the
+      backend core code doesn't actually know how to handle. This would lead to jobs that are
+      accepted by the system but then immediately fail or get stuck because no processor can service
+      them.
+
+4.  Resource Management:
+    - The Hotspot: Processors like convert-video.ts are likely very CPU and memory-intensive.
+    - Potential Bugs: If the queue is not configured to limit how many of these heavy jobs can run
+      concurrently, a user dropping 10 large video files into the dropbox could overwhelm the server,
+      starving the web UI and other critical services of resources and potentially crashing the entire
+      machine.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ > Are you able to infer the longer-term plan for this app from the code? Can you define the most │
+│ important functionality? │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ Of course. By analyzing the file structure, architectural patterns, and specific "tells" in the
+codebase, we can infer the project's trajectory and define its core value proposition.
+
+The Longer-Term Plan: An "AI-Powered Assembly Line"
+
+The clues in the repository point towards a much more ambitious long-term vision than just a simple
+file processor. The goal appears to be creating a highly automated, intelligent, and extensible
+"assembly line" for digital content, with a strong emphasis on integrating with professional creative
+and development workflows.
+
+Here are the key pieces of evidence for this plan:
+
+1.  AI-Driven Agency (`AGENT_TODOS.md`): The presence of a file named AGENT_TODOS.md is the most
+    significant clue. In a software context, an "Agent" is a system that acts autonomously to achieve
+    goals. This implies the long-term plan is for the application to do more than just execute a
+    predefined sequence of tasks. The vision is likely for it to:
+
+    - Intelligently select processors based on file type or content.
+    - Predict outcomes, such as the cost or time required for a job (predicted-jobs.get.ts).
+    - Potentially, self-correct or retry failed jobs using different strategies.
+
+2.  Deep Integration with Design Workflows (`FIGMA_INTEGRATION.md`): This document reveals a plan to
+    bridge the gap between design and automated processing. This is a high-value feature that
+    suggests the target audience includes design and product teams, not just engineers. The plan
+    could involve:
+
+    - Automatically processing assets (images, icons, text) exported from Figma.
+    - Using AI processors to generate documentation or even code components directly from design
+      specifications.
+    - The sophisticated design token system (web/assets/tokens/, .github/workflows/design-tokens.yml)
+      reinforces this, showing a commitment to a professional, design-system-driven front-end.
+
+3.  An Extensible, "Pluggable" Processor Architecture (`core/processors/`): The current processors
+    (convert-video, transcribe, summarize) are just the beginning. The modular architecture is
+    designed to be a framework where new capabilities can be easily added. The long-term plan is
+    almost certainly to build a rich library of processors for handling various tasks:
+    - Image analysis (object recognition, tagging).
+    - Structured data extraction from documents (e.g., invoices, PDFs).
+    - Code generation or analysis.
+
+The Most Important Functionality
+
+While the system has many parts, its single most important function—the core value it provides—is
+cost-controlled, human-supervised, asynchronous processing.
+
+Let's break down why this is the critical concept:
+
+1.  Asynchronous Processing: This is the architectural foundation. The use of a job queue
+    (core/queue/) is the key technical decision that allows the system to handle tasks that are slow
+    and resource-intensive (like video processing or calling large language models) without
+    collapsing. It ensures the system is scalable, resilient, and responsive.
+
+2.  Cost Control: This is the critical business function. The most powerful AI models are expensive,
+    and costs can spiral out of control. This application treats cost as a first-class citizen:
+
+    - core/utils/cost-calculator.ts: A dedicated module for tracking expenses.
+    - web/server/api/cost-summary.get.ts: An endpoint to make costs visible to the user.
+    - predicted-jobs.get.ts: The ability to forecast costs before committing to the expensive work.
+
+3.  Human Supervision (The Approval Workflow): This is what makes the system practical and
+    trustworthy for high-stakes work. The multiple API endpoints for approvals
+    (pending-approval.get.ts, approve-jobs.post.ts, approval-batches.\*.ts) are not just a feature;
+    they are central to the entire philosophy. This workflow provides a crucial "off-ramp," allowing
+    a user to review the predicted cost and expected outcome before giving the final go-ahead. It
+    combines the power of automation with the judgment of a human, which is essential for managing
+    both quality and budget.
+
+In short, while the long-term vision is a sophisticated AI agent, the most important functionality
+today is providing a reliable, predictable, and financially responsible way to run complex processing
+pipelines.
+
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ > Ok, so here was my initial intent, I'd like you to consider what parts of the codebase (as you │
+│ neatly described previously) should be kept/discarded/adapted to more closely align with it: I │
+│ envision a system that evolves on user demand to create machines around │
+│ processing/transcribing/summarising/etc/etc/ pieces of content. So, like a living machine that │
+│ continuously recieves new input (new pieces of info, new videos in the dropbox, new images with │
+│ tags, etc), and incorporates that into its living outputs. We want it to be efficient, so the │
+│ chains of dependecies within the graph are important, but the outputs are key. Something like │
+│ "today's youtube monologe" which relies on previous draft scripts that come from analysis of │
+│ improvised video recordings. Any of these might be human-in-the-loop too, because many machine │
+│ flows will have an llm agent as part of their functionality, and any agent can be given tools to │
+│ use (including a tool to request user-input). Cost is important because we're looking for a 24/7 │
+│ monitoring of data that will change many times per day. We need to know how much each change │
+│ might cost, if we can, to keep an eye on it and slow it down if necessary (adjust the queue or │
+│ skip things or delay their processing, or batch them, etc). │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ Thank you for that clarification. This vision is significantly more dynamic and powerful than a simple
+processing pipeline. You're describing a self-organizing, event-driven system that builds and maintains
+a living graph of interconnected data. It's less of a factory assembly line and more of a "content
+nervous system."
+
+This is a fantastic and achievable vision. The good news is that many components in your current
+codebase are excellent foundations. However, the core architectural abstractions need to be elevated
+to match this new goal.
+
+Here’s a breakdown of what to keep, what to adapt, and what to discard.
+
+Keep & Enhance: The Foundations are Solid
+
+These components are well-aligned with your vision and form the bedrock of the new system.
+
+- `core/processors/` (Keep & Enhance): This is the heart of your "create-a-machine" concept. These
+  modular, single-responsibility processors are the perfect building blocks.
+
+  - How to Enhance: They need to be standardized. Each processor should explicitly declare its
+    inputs (the types of data it can handle) and its outputs (the type of data it produces). This
+    will allow the system to dynamically chain them together.
+
+- `core/utils/cost-calculator.ts` (Keep & Enhance): Your focus on cost is critical for a 24/7 system.
+  This component is essential.
+
+  - How to Enhance: Integrate its predictions more deeply into the core logic. The system should be
+    able to use cost forecasts to make autonomous decisions (delaying, batching, alerting) beyond
+    just waiting for a manual human approval.
+
+- `web/server/api/` (Keep & Enhance): A strong API is crucial for observing and interacting with a
+  complex system.
+
+  - How to Enhance: The API will need new endpoints to expose the dependency graph, the status of
+    "living outputs," and to receive human input for in-flight jobs.
+
+- `AGENT_TODOS.md` / `FIGMA_INTEGRATION.md` (Keep): These documents confirm that the high-level,
+  agentic, and integration-focused direction was the right one all along. They are your north stars.
+
+Adapt Significantly: Evolve the Core Abstractions
+
+These components are based on a simpler "pipeline" model and need to be fundamentally adapted to the
+"living graph" model.
+
+- `core/queue/client.ts` (Adapt): A simple FIFO (First-In, First-Out) queue is no longer sufficient.
+
+  - The Problem: A queue processes jobs in order. Your vision requires that a job (e.g., "summarize
+    script") can only run after its dependencies (e.g., "transcribe video") are complete.
+  - The Adaptation: This needs to evolve into a Graph Scheduler or a Dependency-Aware Job Runner.
+    Instead of just adding a job to a queue, you would "notify" the system that a piece of data has
+    been updated. The scheduler would then look at the dependency graph and automatically trigger
+    any downstream processes whose inputs are now ready.
+
+- `core/db/client.ts` (Adapt): The database is currently designed to track discrete jobs. It needs to
+  be redesigned to track the graph itself.
+
+  - The Problem: It stores a list of jobs, not the relationships between them.
+  - The Adaptation: The database schema must become the source of truth for the dependency graph.
+    It needs to store nodes (the pieces of content, or "living outputs") and edges (the processors
+    that transform one node into another). It will track versions of content and the dependencies
+    between them.
+
+- The "Approval" Workflow (`web/pages/approval.vue`, etc.) (Adapt): This concept is good, but too
+  narrow.
+  - The Problem: It's framed as a simple yes/no gate, likely for cost.
+  - The Adaptation: This should be generalized into a "Human Input Service." This is precisely the
+    "tool to request user-input" you described. Any processor in the graph should be able to pause
+    its execution, send a request to this service (e.g., "Choose the best of these three
+    summaries," "Provide a title for this document"), and wait for a human to respond via the UI
+    before continuing. The UI would feature a "task inbox" instead of just an approval list.
+
+Discard / Deprioritize: Legacy Concepts
+
+These components are tied to the old model and can be replaced by the new, more powerful abstractions.
+
+- `core/watcher/client.ts` (Discard/Replace): The "hot folder" concept is too limiting.
+  - The Problem: It only allows file-based input. Your vision includes "new pieces of info," which
+    could come from anywhere (API calls, webhooks, database changes).
+  - The Replacement: This should be replaced by a more generic Ingestion Service. This service would
+    have multiple entry points (a folder watcher, a set of API endpoints, a webhook receiver) and
+    its only job would be to place new information into the graph as a "source node." The Graph
+    Scheduler then takes over.
+
+Summary of the Shift
+
+Your new system is defined by one major conceptual shift:
+
+┌──────────────────────────────────┬───────────────────────────────────────────────────────┐
+│ From (Old Model) │ To (New Vision) │
+├──────────────────────────────────┼───────────────────────────────────────────────────────┤
+│ A linear **Pipeline** of jobs │ A dynamic **Dependency Graph** of "living" data │
+│ A **Queue** that runs jobs in... │ A **Scheduler** that runs jobs when their inputs a... │
+│ A **File Watcher** as the mai... │ An **Ingestion Service** for multiple input types │
+│ A binary **Approval** gate │ A flexible **Human-in-the-Loop** service for any task │
+│ A UI for **Monitoring** jobs │ A UI for **Composing and Observing** the living graph │
+└──────────────────────────────────┴───────────────────────────────────────────────────────┘
+
+The existing code is a fantastic starting point because you've already built the most important
+low-level pieces: the processors and the cost calculator. The next step is to build the higher-level
+abstractions (the scheduler, the graph database model, the human input service) that will allow these
+pieces to work together in the intelligent, dynamic way you've envisioned.
+
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ > I'd like to challenge you on one point (but I'd like you to re-challenge me if I'm off-base), and │
+│ wonder aloud if there's not an elegance in having the file-based input be the source of truth for │
+│ the system. Writing files and persisting them in markdown or rich text or json, deleting a file │
+│ removes it as a dependency. There are a lot of dependable tools available for working with files, │
+│ there's metadata included for free (though maybe some extra meta would need to be tracked │
+│ somehow, maybe also in the file system)... It's portable in a way... │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ This is an excellent challenge, and you are absolutely not off-base. You've hit on a very powerful and
+elegant concept, one with a rich history in software engineering, particularly within the Unix
+philosophy. The idea of using the file system as a tangible, observable, and self-describing database
+is incredibly appealing.
+
+Let's fully embrace that idea and see where it leads.
+
+The Elegance: The File System as a "Makeflow" Database
+
+The system you're describing is, in essence, a supercharged version of the make utility. In a
+Makefile, you define targets (files) and their dependencies (other files). When you run make, it looks
+at the file modification times and re-builds only what's necessary.
+
+This approach is brilliant for:
+
+1.  Simplicity & Tangibility: The state of the system is visible with ls. You can cat a file to see
+    its content. You can rm a file to invalidate a part of the graph. There's no hidden state in a
+    database you have to query.
+2.  Portability: You can zip up the entire state of your system, move it, and have it work somewhere
+    else. Backups are as simple as rsync.
+3.  Tooling: You get to leverage decades of battle-hardened command-line tools for searching (grep,
+    find), transforming (sed, awk), and managing the data.
+
+For a certain class of problems, this is not just a valid approach; it's the best approach.
+
+The Re-Challenge: Scaling in Complexity, Not Just Volume
+
+The core of my re-challenge is this: your vision's richness, particularly around state, cost, and
+human-in-the-loop interactions, introduces a level of complexity that the file system's metadata model
+is not designed to handle gracefully.
+
+Here are the specific points where the file-system-as-database model begins to break down under the
+weight of your specific requirements:
+
+1. The Challenge of Rich State:
+   A file's metadata primarily tells you its name, size, and when it was last modified. Your system needs
+   to track a much richer state for every single node in the graph:
+
+- pending
+- processing
+- succeeded
+- failed (retrying in 10m)
+- failed (needs human intervention)
+- waiting_for_human_input (prompt: 'Please provide a title')
+- paused (cost exceeds budget)
+
+How do you represent this? You could use file naming conventions (my_video.mp4.processing,
+my_video.mp4.failed), but this becomes incredibly brittle. What if a process crashes mid-rename? You
+now have an inconsistent state.
+
+2. The Challenge of Representing Relationships:
+   A file can easily represent a node. Representing the edges (the dependencies) is much harder.
+
+- One-to-One: video.mp4 -> video.transcript.md (Easy, can be done with naming conventions).
+- Many-to-One: chapter1.txt + chapter2.txt -> book.pdf. How do you name book.pdf to reflect its
+  multiple parents?
+- Querying Relationships: How do you ask the question: "What will break if I delete video.mp4?" You'd
+  have to scan the entire file system for files that follow a specific naming convention. This is slow
+  and inefficient compared to a single, indexed database query.
+
+3. The Challenge of Atomic Operations:
+   Your system needs to perform atomic updates. For example, when a summarization job finishes, you must:
+1. Write the new summary.md file.
+1. Update its state from processing to succeeded.
+1. Record the final cost of the job.
+1. Trigger the next job in the chain.
+
+A database transaction wraps all of these steps into a single, all-or-nothing operation. With a file
+system, these are separate, sequential actions. If the system crashes between steps 2 and 3, you have
+a succeeded job with no recorded cost—a permanently inconsistent state.
+
+The Synthesis: A Hybrid Model (The Best of Both Worlds)
+
+This is where I believe the most robust and elegant solution lies. We can keep the spirit of your
+file-based approach without being limited by it.
+
+Use the file system for what it's best at: storing the data artifacts.
+Use a database for what it's best at: storing the metadata, state, and relationships.
+
+Here’s how it works:
+
+1.  The Database is the Graph: The database (e.g., SQLite for portability, or Postgres for power)
+    stores the graph structure. It has tables for nodes and edges. Each node record contains:
+
+    - A unique ID.
+    - Its current state (pending, failed, etc.).
+    - The cost associated with creating it.
+    - A pointer to its data artifact on the file system (e.g., /path/to/data/a1b2c3d4.json).
+    - Any prompts for human input.
+
+2.  The File System is the Artifact Store: The actual data (the video, the markdown text, the JSON
+    output) lives on the file system. The filenames can be simple content-hashes or UUIDs that match
+    the IDs in the database. This keeps the file system clean and simple.
+
+Why this hybrid model is so powerful:
+
+- You get the transactional integrity and querying power of a real database for your critical logic
+  (state, cost, dependencies).
+- You get the portability and simplicity of a file system for your bulk data. Backing up is still
+  just rsync-ing the data directory and dumping the database.
+- The database stays small and fast because it only holds metadata.
+- The file system logic stays simple because it doesn't need complex naming conventions to manage
+  state.
+
+So, my re-challenge is this: the file system is an excellent datastore, but a poor database for the
+complex, stateful, and highly relational system you envision. By combining it with a lightweight
+database, you get all the benefits you cited without the significant risks to data integrity and
+performance.
+
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ > Haha, well yes, that was going to be my answer, the point being that the metadata in the database │
+│ (and I prefer postgres) should play catchup to the file system. If a file is added or deleted, │
+│ the database should eventually notice it is there or not and respond by kicking off the necessary │
+│ steps to integrate or remove it from the graph. Given that, can you please create a comprehensive │
+│ plan to align the codebase with the vision (including a record of that vision to be referenced as │
+│ we work on it). │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ Excellent. I am fully aligned with this hybrid vision. It combines the tangible, auditable nature of a
+file-based system with the robust, transactional power of a relational database for managing the
+complex relationships and state that your system demands.
+
+Here is a comprehensive plan to refactor the codebase to achieve this. We will begin by creating the
+VISION.md file to serve as our guiding document throughout the process.
+
+Step 1: Create the Vision Document
+
+First, I will create a VISION.md file in the root of the project. This document will capture the core
+principles we've discussed, ensuring that all future development aligns with this clear goal.
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ✔ WriteFile Writing to VISION.md │
+│ │
+│ 1 # Vision: The Content Nervous System │
+│ 2 │
+│ 3 This document outlines the guiding vision for this project. It is a living document │
+│ intended to guide architectural decisions and feature development. │
+│ 4 │
+│ 5 ## Core Metaphor: A Living Graph │
+│ 6 │
+│ 7 The system is not a simple, linear pipeline; it is a **self-organizing, │
+│ event-driven "nervous system"** for digital content. It continuously receives new │
+│ input (files, data, user feedback) and incorporates it into a living, │
+│ interconnected graph of information. │
+│ 8 │
+│ 9 The goal is to create "living outputs"—pieces of content like reports, video │
+│ summaries, or draft scripts that automatically update and evolve as their source │
+│ dependencies change. │
+│ 10 │
+│ 11 ## Guiding Principles │
+│ 12 │
+│ 13 1. **The File System is the Source of Truth for Artifacts.** │
+│ 14 _ All primary data (videos, images, text files, JSON data) is stored directly │
+│ on the file system. │
+│ 15 _ This makes the system's data tangible, portable, and accessible with │
+│ standard tools. │
+│ 16 _ A file's existence or non-existence is a primary event. Deleting a file │
+│ means removing it and its dependents from the graph. │
+│ 17 │
+│ 18 2. **The Database is the Source of Truth for Metadata and State.** │
+│ 19 _ A relational database (PostgreSQL) tracks the _relationships_ between │
+│ files, their processing **state**, their **cost**, and other critical metadata that │
+│ doesn't fit naturally on the file system. │
+│ 20 _ The database "plays catch-up" to the file system. Its primary role is to │
+│ model the graph and manage the state of its nodes. │
+│ 21 _ All operations that require transactional integrity (e.g., updating state │
+│ and cost simultaneously) are handled by the database. │
+│ 22 │
+│ 23 3. **Execution is Dependency-Driven, Not Queue-Driven.** │
+│ 24 _ We do not use a simple First-In, First-Out queue. │
+│ 25 _ A **Scheduler** constantly observes the graph. A process is only triggered │
+│ when all of its input dependencies are met (i.e., their state is `succeeded`). │
+│ 26 _ This allows for a complex, branching, and resilient workflow. │
+│ 27 │
+│ 28 4. **Human-in-the-Loop is a First-Class Citizen.** │
+│ 29 _ Any process in the graph can pause and request human input. │
+│ 30 _ This is not just a binary "approval" gate but a core tool that can be used │
+│ for clarification, selection, or content creation. │
+│ 31 _ The system should provide a clear UI for users to see and respond to these │
+│ requests. │
+│ 32 │
+│ 33 5. **Cost is a Primary Decision-Making Metric.** │
+│ 34 _ The cost of every operation is tracked and forecasted where possible. │
+│ 35 _ This data is not just for reporting; the system can use it to make │
+│ autonomous decisions like pausing expensive workflows, batching jobs, or alerting │
+│ users. │
+╰──────────────────────────────────────────────────────────────────────────────────────────────────────╯
+✦ Excellent. With the VISION.md in place, we have a clear target. Here is a comprehensive plan to
+refactor the codebase. This plan prioritizes foundational changes first (database and core logic)
+before moving to user-facing features.
+
+The Refactoring Plan
+
+---
+
+Phase 1: Establish the Graph Foundation (Database & Core Models)
+
+The goal of this phase is to replace the old job-centric database schema with one that can represent a
+dependency graph.
+
+1.  Define the New Database Schema:
+
+    - I will create a new document at docs/DATABASE_SCHEMA.md to define the tables for our graph
+      model. This will include:
+      - nodes: To represent every file artifact. It will store the file path, state (new,
+        processing, succeeded, failed, waiting_for_human_input), cost, and other metadata.
+      - edges: A simple join table to define the dependencies (source_node_id, target_node_id),
+        creating the graph structure.
+      - human_input_requests: To store requests for user feedback, linking them to a specific node.
+
+2.  Update Database Client:
+    - I will modify core/db/client.ts and web/server/utils/db.ts to use and expose the new schema.
+      For now, this will involve replacing the existing Prisma schema or database setup with the new
+      graph-based model.
+
+---
+
+Phase 2: Reinvent the Core Logic (The Scheduler)
+
+This phase replaces the linear queue with a dependency-aware scheduler.
+
+1.  Create the Scheduler:
+
+    - I will create a new core/scheduler/ directory.
+    - The new scheduler.ts will contain the core logic:
+      - It will periodically query the database for nodes that are ready to be processed (i.e.,
+        their dependencies have a succeeded state).
+      - It will be responsible for invoking the correct processor for a given node.
+      - It will update the state of nodes in the database (processing, succeeded, failed).
+
+2.  Standardize Processors:
+
+    - I will refactor the modules in core/processors/. Each processor will be updated to:
+      - Be called by the Scheduler, not a queue worker.
+      - Receive a node ID as input.
+      - Interact with the database to create its output node record and the corresponding edge
+        linking it back to its source.
+      - Write its output artifact to the file system.
+
+3.  Deprecate the Old Queue:
+    - The core/queue/client.ts will be marked for deprecation and its logic will be bypassed in favor
+      of the new Scheduler.
+
+---
+
+Phase 3: Synchronize the Real World (File System Watcher)
+
+This phase makes the system aware of its environment.
+
+1.  Rewrite the Watcher:
+    - I will completely refactor core/watcher/client.ts. Its new responsibilities will be:
+      - Initial Scan: On startup, scan the dropbox/ directory and reconcile it with the nodes table
+        in the database. It will create new node records for untracked files and mark nodes as
+        orphaned if their corresponding file is missing.
+      - Live Monitoring: Watch for add and unlink events in the directory. An add event creates a
+        new node in the database with the state new. An unlink event triggers the process of
+        orphaning that node and its dependents.
+
+---
+
+Phase 4: Adapt the User Interface
+
+This phase updates the UI to reflect the new underlying model. This will be an iterative process.
+
+1.  Refactor API Endpoints:
+
+    - I will overhaul the API endpoints in web/server/api/.
+    - Endpoints like jobs.get.ts and failed-jobs.get.ts will be replaced with nodes.get.ts, which can
+      be filtered by state (e.g., /api/nodes?state=failed).
+    - New endpoints will be created to visualize the graph, e.g., /api/nodes/[id]/dependencies.
+
+2.  Update UI (Initial Version):
+
+    - The initial UI change will be to replace the job-centric pages (files.vue, processors.vue) with
+      a single, powerful "Graph Explorer" view.
+    - At first, this can be a simple table-based view of all the nodes from the database, showing
+      their state, cost, and relationships. A full graphical visualization can be a future goal.
+
+3.  Implement Human-in-the-Loop UI:
+    - I will create a new page and API for the "Human Input" system. This will be a simple inbox where
+      users can see pending requests and submit their feedback, which will un-pause the waiting
+      nodes.
+
+I will now proceed with Phase 1, Step 1: Define the New Database Schema by creating the
+docs/DATABASE_SCHEMA.md file. Shall I proceed?
+
+╭────────────────────────────────────────────────────────────────────────────────────────────────────────╮
+│ > You need a way to return to that plan as you work, decide how would you prefer to do that and then │
+│ you can carry on. Don't forget that you can also pause to ask me what you need. │
+╰────────────────────────────────────────────────────────────────────────────────────────────────────────╯
+
+✦ You've made an excellent point. To ensure I don't lose track of the plan across multiple interactions,
+I will adopt the following process:
+
+1.  Persist the Plan: I will save the complete, multi-phase plan we've just discussed into a file
+    named REFACTORING_PLAN.md in the project's root directory.
+2.  Re-orient at Each Step: Before beginning work on a new phase or a major step, I will first read
+    the contents of REFACTORING_PLAN.md. This will serve as my "state check" to ensure I know exactly
+    what has been done and what needs to happen next.
+3.  Communicate My Focus: After reading the plan, I will explicitly state which phase and step I am
+    about to execute.
+
+This approach makes the plan a durable artifact within the project itself, and my process for
+executing it will be transparent and predictable.
+
+I will now proceed. First, I'll create the REFACTORING_PLAN.md file. Then, I will begin Phase 1.
+</conversation_history>

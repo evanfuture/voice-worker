@@ -28,6 +28,7 @@ export default defineNuxtConfig({
     openaiApiKey: process.env.OPENAI_API_KEY,
     public: {
       // Client-side environment variables
+      convexUrl: process.env.CONVEX_URL,
     },
   },
 });
