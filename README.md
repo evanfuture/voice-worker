@@ -6,7 +6,7 @@ A modern TypeScript-based file monitoring and processing system with web interfa
 
 - 📁 **File System Monitoring** - Real-time folder watching with intelligent file cataloging
 - 🌐 **Modern Web Interface** - Nuxt 3 web app with real-time WebSocket updates
-- 🗄️ **SQLite Database** - Comprehensive file metadata and processing tracking
+- 🗄️ **Graph Database (Convex)** - Node-based content graph with typed relationships
 - ⚡ **Job Queue System** - BullMQ-based queue with Redis for reliable job processing
 - 🔧 **Configurable Processors** - Database-driven processor configurations with UI management
 - 🔗 **Dependency Resolution** - Smart processor dependencies and execution ordering
@@ -32,9 +32,13 @@ npm install
 # Start Redis (using Docker)
 docker run -d -p 6379:6379 redis:alpine
 
+# Start Convex in a separate terminal
+npx convex dev &
+
 # Setup environment
 cp scripts/env.example .env
-# Edit .env with your configuration (OpenAI API key, etc.)
+# Edit .env with your configuration (OPENAI_API_KEY, CONVEX_URL, etc.)
+# Use the URL output from `npx convex dev` for CONVEX_URL
 
 # Initialize the system
 npm run setup
@@ -57,7 +61,7 @@ npm run dev
 - **📊 Real-time Dashboard** - WebSocket-powered queue monitoring and controls
 - **⚙️ Processor Management** - Database-driven configuration with web UI
 - **📁 File Watcher** (`chokidar`) - Intelligent filesystem monitoring
-- **🗄️ Database Layer** (`better-sqlite3`) - Comprehensive metadata storage
+- **🗄️ Database Layer** (Convex) - Graph-based node and edge storage
 - **⚡ Queue System** (`bullmq` + Redis) - Reliable job processing
 - **🎨 Design System** - Style Dictionary + Figma token synchronization
 
@@ -369,6 +373,7 @@ This system represents a consolidation of previous architectures:
 - **Figma Integration** - `src/design-system/FIGMA_INTEGRATION.md`
 - **API Reference** - Auto-generated from Nuxt server routes
 - **Architecture Notes** - `AGENT_MEMORY.md` (development documentation)
+- **Database Schema** - `docs/DATABASE_SCHEMA.md`
 
 ## 🆘 Troubleshooting
 
